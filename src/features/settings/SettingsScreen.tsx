@@ -25,7 +25,16 @@ export const SettingsScreen: React.FC = () => {
   const navigate = useNavigate();
   const { user, switchRole } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'preferences' | 'demo'>('users');
+  // Determine initial tab from URL path or fallback to role-appropriate default
+  const getDefaultTab = (): 'users' | 'preferences' | 'demo' => {
+    const path = window.location.pathname;
+    if (path.includes('/users')) return 'users';
+    if (path.includes('/demo')) return 'demo';
+    if (path.includes('/preferences')) return 'preferences';
+    // Non-admins cannot see users tab — default to preferences
+    return 'preferences';
+  };
+  const [activeTab, setActiveTab] = useState<'users' | 'preferences' | 'demo'>(getDefaultTab);
   const [usersList, setUsersList] = useState<User[]>([]);
   const [isResetting, setIsResetting] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);

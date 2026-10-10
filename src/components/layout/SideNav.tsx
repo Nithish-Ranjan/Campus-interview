@@ -218,11 +218,13 @@ export const SideNav: React.FC<SideNavProps> = ({
                     }}
                     title={isCollapsed ? item.name : undefined}
                     className={cn(
-                      'flex items-center rounded-lg text-xs font-medium transition-all group relative',
+                      'flex items-center rounded-lg text-xs font-medium my-[3px] transition-all duration-150 ease-in-out group relative',
+                      'focus-visible:outline-2 focus-visible:outline-[rgba(37,99,235,0.6)] focus-visible:outline-offset-2 focus:outline-hidden',
+                      'motion-reduce:transition-none motion-reduce:hover:transform-none',
                       isCollapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2',
                       isActive
-                        ? 'bg-blue-50 text-blue-700 font-semibold shadow-2xs'
-                        : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                        ? 'bg-[rgba(37,99,235,0.12)] border border-[rgba(37,99,235,0.45)] text-blue-700 font-semibold'
+                        : 'bg-[rgba(13,148,136,0.10)] border border-[rgba(13,148,136,0.30)] text-slate-600 hover:bg-[rgba(13,148,136,0.16)] hover:border-[rgba(13,148,136,0.45)] hover:text-slate-900 hover:translate-x-[2px]'
                     )}
                   >
                     <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'gap-2.5')}>
@@ -255,9 +257,13 @@ export const SideNav: React.FC<SideNavProps> = ({
           title={isCollapsed ? 'Settings & Demo' : undefined}
           className={({ isActive }) =>
             cn(
-              'flex items-center rounded-lg text-xs font-medium transition-colors',
+              'flex items-center rounded-lg text-xs font-medium my-[3px] transition-all duration-150 ease-in-out group relative',
+              'focus-visible:outline-2 focus-visible:outline-[rgba(37,99,235,0.6)] focus-visible:outline-offset-2 focus:outline-hidden',
+              'motion-reduce:transition-none motion-reduce:hover:transform-none',
               isCollapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-2',
-              isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+              isActive
+                ? 'bg-[rgba(37,99,235,0.12)] border border-[rgba(37,99,235,0.45)] text-blue-700 font-semibold'
+                : 'bg-[rgba(13,148,136,0.10)] border border-[rgba(13,148,136,0.30)] text-slate-600 hover:bg-[rgba(13,148,136,0.16)] hover:border-[rgba(13,148,136,0.45)] hover:text-slate-900 hover:translate-x-[2px]'
             )
           }
         >
