@@ -6,12 +6,15 @@ import {
   ChevronDown, 
   UserCheck,
   Menu,
-  ChevronRight
+  ChevronRight,
+  Database,
+  AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/authContext';
 import { ConnectionIndicator } from '@/components/domain/ConnectionIndicator';
 import { Breadcrumbs } from './Breadcrumbs';
 import type { UserRole } from '@/lib/api/types';
+import { subscribeDataSourceStatus, type DataSourceStatus } from '@/lib/api/client';
 import { formatTimeIST, TIMEZONE_LABEL } from '@/lib/format/date';
 import { cn } from '@/lib/utils';
 
@@ -39,10 +42,17 @@ export const TopBar: React.FC<TopBarProps> = ({
   const { user, switchRole } = useAuth();
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const [dataSource, setDataSource] = useState<DataSourceStatus>('postgres');
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    return subscribeDataSourceStatus((status) => {
+      setDataSource(status);
+    });
   }, []);
 
   const roles: { role: UserRole; label: string; desc: string }[] = [
@@ -50,7 +60,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     { role: 'officer', label: 'Placement Officer', desc: 'Approver (Approves proposals, Read everything)' },
     { role: 'admin', label: 'Administrator', desc: 'System head (Manage roles, demo resets, all actions)' },
     { role: 'panel_coordinator', label: 'Panel Coordinator', desc: 'Room A operator (Live status only)' },
-    { role: 'observer', label: 'Observer', desc: 'Auditor (Read-only view of dashboard and schedules)' }
+    { role: 'student', label: 'Student', desc: 'Candidate (Aarav Sharma - Student profile & schedule)' }
   ];
 
   return (
@@ -98,6 +108,25 @@ export const TopBar: React.FC<TopBarProps> = ({
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Live Realtime Connection Indicator */}
         <ConnectionIndicator />
+
+        {/* Data Source Indicator: PostgreSQL Live vs Mock Fallback */}
+        {dataSource === 'postgres' ? (
+          <span 
+            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/90 shadow-2xs"
+            title="Active Data Source: Live PostgreSQL Database (Port 4000)"
+          >
+            <Database className="w-3 h-3 text-emerald-600" />
+            <span>PostgreSQL Live</span>
+          </span>
+        ) : (
+          <span 
+            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/90 shadow-2xs"
+            title="Active Data Source: Mock Engine Fallback (Backend disconnected)"
+          >
+            <AlertTriangle className="w-3 h-3 text-amber-600" />
+            <span>Mock Fallback</span>
+          </span>
+        )}
 
         {/* Demo environment pill */}
         <span className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">

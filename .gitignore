@@ -11,8 +11,16 @@ node_modules
 dist
 dist-ssr
 *.local
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.env
 
-# Editor directories and files
+# SQLite / Local DBs
+*.db
+*.db-journal
+
 .vscode/*
 !.vscode/extensions.json
 .idea

@@ -43,6 +43,13 @@ export const INITIAL_USERS: User[] = [
     environment: 'demo'
   },
   {
+    id: 'user-student',
+    name: 'Aarav Sharma',
+    email: 'student@placement.example',
+    role: 'student',
+    environment: 'demo'
+  },
+  {
     id: 'user-observer',
     name: 'Dean Academics',
     email: 'observer@placement.example',

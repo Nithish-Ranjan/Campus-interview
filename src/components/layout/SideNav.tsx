@@ -62,7 +62,7 @@ export const SideNav: React.FC<SideNavProps> = ({
           name: 'Overview',
           path: '/overview',
           icon: LayoutDashboard,
-          allowedRoles: ['admin', 'officer', 'coordinator', 'panel_coordinator', 'observer']
+          allowedRoles: ['admin', 'officer', 'coordinator', 'panel_coordinator', 'observer', 'student']
         }
       ]
     },
@@ -73,7 +73,7 @@ export const SideNav: React.FC<SideNavProps> = ({
           name: 'Candidates',
           path: '/candidates',
           icon: Users,
-          allowedRoles: ['admin', 'officer', 'coordinator', 'panel_coordinator', 'observer']
+          allowedRoles: ['admin', 'officer', 'coordinator', 'panel_coordinator', 'observer', 'student']
         },
         {
           name: 'Companies',

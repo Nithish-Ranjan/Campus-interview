@@ -5,7 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:frontend": "vite",
+    "dev:server": "npm --prefix server run dev",
     "build": "tsc -b && vite build",
+    "build:server": "npm --prefix server run build",
+    "typecheck:server": "npm --prefix server run typecheck",
+    "migrate:status": "npm --prefix server run migrate:status",
+    "migrate:up": "npm --prefix server run migrate:up",
+    "seed:dev": "npm --prefix server run seed:dev",
+    "test:api": "npm --prefix server run test:api",
     "lint": "oxlint",
     "preview": "vite preview"
   },

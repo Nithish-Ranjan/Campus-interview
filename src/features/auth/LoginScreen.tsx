@@ -47,6 +47,7 @@ export const LoginScreen: React.FC = () => {
       if (email.includes('officer')) switchRole('officer');
       else if (email.includes('panel')) switchRole('panel_coordinator');
       else if (email.includes('admin')) switchRole('admin');
+      else if (email.includes('student')) switchRole('student');
       else if (email.includes('observer')) switchRole('observer');
       else switchRole('coordinator');
     }, 350);
@@ -180,6 +181,18 @@ export const LoginScreen: React.FC = () => {
                 >
                   <div className="font-bold text-[#142C4E] group-hover:text-[#2563EB]">Panel Coord</div>
                   <div className="text-[10px] text-[#64748B]">Live ops Room A execution</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemoLogin('student')}
+                  className="col-span-2 p-2.5 text-left bg-[#F8FAFC] hover:bg-[#2563EB]/5 hover:border-[#2563EB] border border-[#E2E8F0] rounded-lg transition-all group flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-bold text-[#142C4E] group-hover:text-[#2563EB]">Student (Aarav Sharma)</div>
+                    <div className="text-[10px] text-[#64748B]">Candidate view & confirmed interview status</div>
+                  </div>
+                  <GraduationCap className="w-4 h-4 text-[#2563EB]/70 group-hover:text-[#2563EB]" />
                 </button>
               </div>
             </div>

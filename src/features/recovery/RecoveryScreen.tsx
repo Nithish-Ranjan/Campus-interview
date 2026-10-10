@@ -59,7 +59,7 @@ export const RecoveryScreen: React.FC = () => {
     if (!simulation || !selectedAlternativeId) return;
     setIsCreatingProposal(true);
     try {
-      const prop = await apiClient.createProposal(simulation.id, selectedAlternativeId, proposalNote);
+      const prop = await apiClient.createProposal(simulation, selectedAlternativeId, proposalNote);
       setProposalDialogOpen(false);
       navigate(`/approvals/${prop.id}`);
     } catch (err: any) {

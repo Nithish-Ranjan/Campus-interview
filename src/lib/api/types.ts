@@ -1,5 +1,5 @@
 export const TYPES_LOADED = true;
-export type UserRole = 'admin' | 'officer' | 'coordinator' | 'panel_coordinator' | 'observer';
+export type UserRole = 'admin' | 'officer' | 'coordinator' | 'panel_coordinator' | 'student' | 'observer';
 
 export interface User {
   id: string;
