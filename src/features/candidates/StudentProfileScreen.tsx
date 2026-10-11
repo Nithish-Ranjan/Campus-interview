@@ -14,7 +14,10 @@ import {
   UserCheck,
   School,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  FolderGit2,
+  Award,
+  ShieldCheck
 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { DecisionTrio } from '@/components/domain/DecisionTrio';
@@ -447,6 +450,122 @@ export const StudentProfileScreen: React.FC = () => {
               )}
             </div>
           </Card>
+
+          {/* Parsed Resume Portfolio & Projects Card */}
+          {student.parsedResume && (
+            <Card className="border-[#E2E8F0] shadow-xs">
+              <div className="p-6 space-y-5">
+                <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#2563EB]" />
+                    <h2 className="font-bold text-sm text-[#142C4E]">Extracted Resume Portfolio & Verified Dossier</h2>
+                  </div>
+                  <Badge variant="success" className="text-[10px] gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Verified Parsing ({student.parsedResume.skills?.length || 0} Skills Extracted)
+                  </Badge>
+                </div>
+
+                {/* Projects */}
+                {student.parsedResume.projects && student.parsedResume.projects.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-[#142C4E] uppercase tracking-wider">
+                      <FolderGit2 className="w-3.5 h-3.5 text-[#2563EB]" />
+                      <span>Extracted Projects ({student.parsedResume.projects.length})</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {student.parsedResume.projects.map((proj: any, idx: number) => (
+                        <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2 hover:border-blue-300 transition-colors">
+                          <h4 className="font-bold text-sm text-[#142C4E]">{proj.title}</h4>
+                          {proj.technologies && proj.technologies.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {proj.technologies.map((t: string, tIdx: number) => (
+                                <span key={tIdx} className="px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] text-[10px] font-semibold border border-blue-200">
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {proj.description && (
+                            <p className="text-xs text-[#64748B] leading-relaxed">
+                              {proj.description}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Extracted Skills & Tools */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-[#E2E8F0]">
+                  <div>
+                    <span className="block font-bold text-xs text-[#142C4E] uppercase tracking-wider mb-2">
+                      Extracted Technical Skills ({student.parsedResume.skills?.length || 0})
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {student.parsedResume.skills?.map((s: string, idx: number) => (
+                        <span key={idx} className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-[#142C4E] text-xs font-medium shadow-2xs">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block font-bold text-xs text-[#142C4E] uppercase tracking-wider mb-2">
+                      Developer Tools & Platforms ({student.parsedResume.tools?.length || 0})
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {student.parsedResume.tools?.map((tool: string, idx: number) => (
+                        <span key={idx} className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 text-xs font-medium shadow-2xs">
+                          {tool}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Achievements & Certifications */}
+                {((student.parsedResume.achievements && student.parsedResume.achievements.length > 0) || 
+                  (student.parsedResume.certifications && student.parsedResume.certifications.length > 0)) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-[#E2E8F0]">
+                    {student.parsedResume.achievements && student.parsedResume.achievements.length > 0 && (
+                      <div>
+                        <span className="block font-bold text-xs text-[#142C4E] uppercase tracking-wider mb-2">
+                          Achievements & Awards
+                        </span>
+                        <ul className="space-y-1.5 text-xs text-slate-700">
+                          {student.parsedResume.achievements.map((ach: string, idx: number) => (
+                            <li key={idx} className="flex items-start gap-1.5">
+                              <Award className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                              <span>{ach}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {student.parsedResume.certifications && student.parsedResume.certifications.length > 0 && (
+                      <div>
+                        <span className="block font-bold text-xs text-[#142C4E] uppercase tracking-wider mb-2">
+                          Verified Certifications
+                        </span>
+                        <ul className="space-y-1.5 text-xs text-slate-700">
+                          {student.parsedResume.certifications.map((cert: string, idx: number) => (
+                            <li key={idx} className="flex items-start gap-1.5">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              <span>{cert}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Gemini AI Match Analysis Card */}
           <Card className="border-[#E2E8F0] shadow-xs">

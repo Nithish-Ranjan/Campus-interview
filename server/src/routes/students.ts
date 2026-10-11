@@ -203,29 +203,60 @@ async function handleResumeUpload(req: Request, res: Response, targetStudentId: 
       isAi = false;
     }
 
-    // 3. Update student record in PostgreSQL
+    // 3. Update student record in PostgreSQL with parsed data and skills
+    const newSkills = (Array.isArray(parsed?.skills) && parsed.skills.length > 0)
+      ? parsed.skills
+      : undefined;
+
+    const studentUpdates: string[] = [
+      'resume_storage_key = $1',
+      'resume_file_size = $2',
+      'resume_mime_type = \'application/pdf\'',
+      'resume_hash = $3',
+      'resume_uploaded_at = NOW()',
+      'resume_file_name = $4',
+      'resume_url = $5',
+      'parsed_resume = $6::jsonb',
+      'resume_parse_status = \'parsed\'',
+      'updated_at = NOW()'
+    ];
+    const updateParams: any[] = [
+      stored.storageKey,
+      stored.fileSize,
+      stored.hash,
+      req.file.originalname,
+      `/api/students/${targetStudentId}/resume`,
+      JSON.stringify(parsed)
+    ];
+
+    if (newSkills) {
+      updateParams.push(JSON.stringify(newSkills));
+      studentUpdates.push(`skills = $${updateParams.length}::jsonb`);
+    }
+
+    if (parsed?.candidateName && parsed.candidateName.length > 2) {
+      updateParams.push(parsed.candidateName);
+      studentUpdates.push(`name = $${updateParams.length}`);
+      await pool.query(
+        `UPDATE users SET name = $1 WHERE id = (SELECT user_id FROM students WHERE id = $2)`,
+        [parsed.candidateName, targetStudentId]
+      ).catch((e: any) => console.warn('User name update skipped:', e.message));
+    }
+
+    if (parsed?.phone) {
+      updateParams.push(parsed.phone);
+      studentUpdates.push(`phone = $${updateParams.length}`);
+    }
+
+    if (parsed?.education && parsed.education[0]?.institution) {
+      updateParams.push(parsed.education[0].institution);
+      studentUpdates.push(`college_name = $${updateParams.length}`);
+    }
+
+    updateParams.push(targetStudentId);
     await pool.query(
-      `UPDATE students SET
-         resume_storage_key = $1,
-         resume_file_size = $2,
-         resume_mime_type = 'application/pdf',
-         resume_hash = $3,
-         resume_uploaded_at = NOW(),
-         resume_file_name = $4,
-         resume_url = $5,
-         parsed_resume = $6::jsonb,
-         resume_parse_status = 'parsed',
-         updated_at = NOW()
-       WHERE id = $7`,
-      [
-        stored.storageKey,
-        stored.fileSize,
-        stored.hash,
-        req.file.originalname,
-        `/api/students/${targetStudentId}/resume`,
-        JSON.stringify(parsed),
-        targetStudentId
-      ]
+      `UPDATE students SET ${studentUpdates.join(', ')} WHERE id = $${updateParams.length}`,
+      updateParams
     );
 
     // 4. Audit Log

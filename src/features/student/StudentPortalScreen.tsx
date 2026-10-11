@@ -21,7 +21,9 @@ import {
   Mail, 
   BookOpen, 
   Check, 
-  AlertTriangle 
+  AlertTriangle,
+  FolderGit2,
+  Award
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/authContext';
 import { apiClient } from '@/lib/api/client';
@@ -402,6 +404,128 @@ export const StudentPortalScreen: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Extracted Resume Dossier Card */}
+            {student.parsedResume && (
+              <Card className="border-[#E2E8F0] shadow-sm bg-white overflow-hidden">
+                <CardHeader className="pb-3 border-b border-[#E2E8F0] bg-slate-50/60">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#2563EB]" />
+                      <CardTitle className="text-sm font-bold text-[#142C4E]">
+                        Extracted Resume Dossier & Portfolio
+                      </CardTitle>
+                    </div>
+                    <Badge variant="success" className="text-[10px] gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      Verified Extraction ({student.parsedResume.skills?.length || 0} Skills)
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs text-[#64748B]">
+                    Extracted from {student.resumeFileName || 'uploaded PDF'} &bull; Used for role criteria and AI match analysis.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 space-y-5 text-xs">
+                  {/* Extracted Projects */}
+                  {student.parsedResume.projects && student.parsedResume.projects.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-[#142C4E] uppercase tracking-wider">
+                        <FolderGit2 className="w-3.5 h-3.5 text-[#2563EB]" />
+                        <span>Verified Projects ({student.parsedResume.projects.length})</span>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3">
+                        {student.parsedResume.projects.map((proj: any, idx: number) => (
+                          <div key={idx} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2 hover:border-blue-300 transition-colors">
+                            <h4 className="font-bold text-sm text-[#142C4E]">{proj.title}</h4>
+                            {proj.technologies && proj.technologies.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {proj.technologies.map((t: string, tIdx: number) => (
+                                  <span key={tIdx} className="px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] text-[10px] font-semibold border border-blue-200">
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {proj.description && (
+                              <p className="text-xs text-[#64748B] leading-relaxed">
+                                {proj.description}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Extracted Technical Skills & Tools */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="block font-bold text-xs text-[#142C4E] uppercase tracking-wider mb-2">
+                        Extracted Skills ({student.parsedResume.skills?.length || 0})
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {student.parsedResume.skills?.map((s: string, idx: number) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[#142C4E] text-[11px] font-medium shadow-2xs">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="block font-bold text-xs text-[#142C4E] uppercase tracking-wider mb-2">
+                        Tools & Environments ({student.parsedResume.tools?.length || 0})
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {student.parsedResume.tools?.map((tool: string, idx: number) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 text-[11px] font-medium shadow-2xs">
+                            {tool}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Achievements & Certifications */}
+                  {((student.parsedResume.achievements && student.parsedResume.achievements.length > 0) || 
+                    (student.parsedResume.certifications && student.parsedResume.certifications.length > 0)) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+                      {student.parsedResume.achievements && student.parsedResume.achievements.length > 0 && (
+                        <div>
+                          <span className="block font-bold text-xs text-[#142C4E] uppercase tracking-wider mb-2">
+                            Achievements & Awards
+                          </span>
+                          <ul className="space-y-1.5 text-xs text-slate-700">
+                            {student.parsedResume.achievements.map((ach: string, idx: number) => (
+                              <li key={idx} className="flex items-start gap-1.5">
+                                <Award className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                <span>{ach}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {student.parsedResume.certifications && student.parsedResume.certifications.length > 0 && (
+                        <div>
+                          <span className="block font-bold text-xs text-[#142C4E] uppercase tracking-wider mb-2">
+                            Verified Certifications
+                          </span>
+                          <ul className="space-y-1.5 text-xs text-slate-700">
+                            {student.parsedResume.certifications.map((cert: string, idx: number) => (
+                              <li key={idx} className="flex items-start gap-1.5">
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                                <span>{cert}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Right Column: Private Resume & Profile Details */}
