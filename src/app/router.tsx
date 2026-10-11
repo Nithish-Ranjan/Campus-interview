@@ -104,9 +104,9 @@ export const router = createBrowserRouter([
             ]
           },
 
-          // Student Directory & Detailed Profiles: Placement Officer & Placement Coordinator Only
+          // Student Directory & Detailed Profiles: Admin, Placement Officer & Placement Coordinator
           {
-            element: <RoleGuard allowedRoles={['officer', 'coordinator']} />,
+            element: <RoleGuard allowedRoles={['admin', 'officer', 'coordinator']} />,
             children: [
               {
                 path: '/candidates',

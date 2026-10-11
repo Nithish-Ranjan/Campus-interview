@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   ArrowLeft, 
   FileText, 
@@ -28,19 +28,34 @@ import type { MatchReport } from '@/lib/api/types';
 export const StudentProfileScreen: React.FC = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [profile, setProfile] = useState<any | null>(null);
-  const [activeTab, setActiveTab] = useState<'applications' | 'academic' | 'resume' | 'schedule' | 'history'>('applications');
+  const tabParam = searchParams.get('tab') as any;
+  const validTabs = ['applications', 'academic', 'resume', 'schedule', 'history'];
+  const [activeTab, setActiveTab] = useState<'applications' | 'academic' | 'resume' | 'schedule' | 'history'>(
+    tabParam && validTabs.includes(tabParam) ? tabParam : 'applications'
+  );
   const [activeExplanation, setActiveExplanation] = useState<any | null>(null);
   const [whyDrawerOpen, setWhyDrawerOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Resume upload & AI match state
   const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const [uploadFeedback, setUploadFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [selectedMatchCompany, setSelectedMatchCompany] = useState<string>('');
   const [matchReport, setMatchReport] = useState<MatchReport | null>(null);
   const [isEvaluatingMatch, setIsEvaluatingMatch] = useState(false);
   const [matchError, setMatchError] = useState<string | null>(null);
+
+  const handleTabChange = (tab: 'applications' | 'academic' | 'resume' | 'schedule' | 'history') => {
+    setActiveTab(tab);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    }, { replace: true });
+  };
 
   const loadProfile = React.useCallback(() => {
     if (!studentId) return;
@@ -79,18 +94,21 @@ export const StudentProfileScreen: React.FC = () => {
   const handleStaffResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !studentId) return;
-    if (file.type !== 'application/pdf') {
-      alert('Only PDF resumes are supported');
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setUploadFeedback({ type: 'error', message: 'Only PDF resumes are supported.' });
       return;
     }
 
     try {
       setIsUploadingResume(true);
+      setUploadFeedback(null);
       await apiClient.uploadStudentResume(studentId, file);
-      loadProfile();
-      alert('Candidate resume uploaded and parsed successfully.');
+      // Reload profile data cleanly without unmounting
+      const updated = await apiClient.getStudentById(studentId);
+      if (updated) setProfile(updated);
+      setUploadFeedback({ type: 'success', message: 'Candidate resume uploaded and parsed successfully!' });
     } catch (err: any) {
-      alert(err.message || 'Failed to upload candidate resume');
+      setUploadFeedback({ type: 'error', message: err.message || 'Failed to upload candidate resume' });
     } finally {
       setIsUploadingResume(false);
       e.target.value = '';
@@ -165,15 +183,26 @@ export const StudentProfileScreen: React.FC = () => {
               </div>
             </div>
 
-            <div className="text-xs text-[#64748B] space-y-1.5 bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] min-w-56">
-              <div className="flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5 text-[#2563EB]" />
-                <span className="font-mono text-[11px] truncate">{student.email || 'Restricted by privacy policy'}</span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="text-xs text-[#64748B] space-y-1.5 bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] min-w-56">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 text-[#2563EB]" />
+                  <span className="font-mono text-[11px] truncate">{student.email || 'Restricted by privacy policy'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5 text-[#2563EB]" />
+                  <span className="font-mono text-[11px]">{student.phone || 'Restricted by privacy policy'}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5 text-[#2563EB]" />
-                <span className="font-mono text-[11px]">{student.phone || 'Restricted by privacy policy'}</span>
-              </div>
+              <Button
+                variant={student.resumeFileName ? "outline" : "navy"}
+                size="sm"
+                onClick={() => handleTabChange('resume')}
+                className="text-xs gap-1.5 shrink-0"
+              >
+                <FileText className="w-3.5 h-3.5 text-[#2563EB]" />
+                <span>{student.resumeFileName ? 'Resume on File' : 'Upload Resume'}</span>
+              </Button>
             </div>
           </div>
         </Card>
@@ -198,7 +227,7 @@ export const StudentProfileScreen: React.FC = () => {
       <div className="border-b border-[#E2E8F0] flex gap-6 text-xs font-semibold text-[#64748B]">
         <button
           type="button"
-          onClick={() => setActiveTab('applications')}
+          onClick={() => handleTabChange('applications')}
           className={`pb-3 transition-colors ${
             activeTab === 'applications' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'hover:text-[#172033]'
           }`}
@@ -207,7 +236,7 @@ export const StudentProfileScreen: React.FC = () => {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('academic')}
+          onClick={() => handleTabChange('academic')}
           className={`pb-3 transition-colors ${
             activeTab === 'academic' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'hover:text-[#172033]'
           }`}
@@ -216,7 +245,7 @@ export const StudentProfileScreen: React.FC = () => {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('resume')}
+          onClick={() => handleTabChange('resume')}
           className={`pb-3 transition-colors ${
             activeTab === 'resume' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'hover:text-[#172033]'
           }`}
@@ -225,7 +254,7 @@ export const StudentProfileScreen: React.FC = () => {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('schedule')}
+          onClick={() => handleTabChange('schedule')}
           className={`pb-3 transition-colors ${
             activeTab === 'schedule' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'hover:text-[#172033]'
           }`}
@@ -234,7 +263,7 @@ export const StudentProfileScreen: React.FC = () => {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('history')}
+          onClick={() => handleTabChange('history')}
           className={`pb-3 transition-colors ${
             activeTab === 'history' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'hover:text-[#172033]'
           }`}
@@ -336,6 +365,21 @@ export const StudentProfileScreen: React.FC = () => {
       {/* Tab 3: Resume & AI Match */}
       {activeTab === 'resume' && (
         <div className="space-y-5">
+          {uploadFeedback && (
+            <div className={`p-3 rounded-lg text-xs flex items-center gap-2 border ${
+              uploadFeedback.type === 'success' 
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                : 'bg-red-50 text-red-700 border-red-200'
+            }`}>
+              {uploadFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              )}
+              <span>{uploadFeedback.message}</span>
+            </div>
+          )}
+
           {/* Resume Storage & Actions Card */}
           <Card className="border-[#E2E8F0] shadow-xs">
             <div className="p-6 space-y-4">
@@ -345,25 +389,23 @@ export const StudentProfileScreen: React.FC = () => {
                   <h2 className="font-bold text-sm text-[#142C4E]">Private Resume Document</h2>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="cursor-pointer">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={isUploadingResume}
-                      className="text-xs gap-1.5 cursor-pointer"
-                      onClick={() => document.getElementById('staff-resume-upload')?.click()}
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{isUploadingResume ? 'Uploading...' : 'Upload/Replace PDF'}</span>
-                    </Button>
-                    <input
-                      id="staff-resume-upload"
-                      type="file"
-                      accept=".pdf"
-                      className="hidden"
-                      onChange={handleStaffResumeUpload}
-                    />
-                  </label>
+                  <input
+                    id="staff-resume-upload"
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    className="hidden"
+                    onChange={handleStaffResumeUpload}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isUploadingResume}
+                    className="text-xs gap-1.5 cursor-pointer"
+                    onClick={() => document.getElementById('staff-resume-upload')?.click()}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{isUploadingResume ? 'Uploading...' : 'Upload/Replace PDF'}</span>
+                  </Button>
 
                   {student.resumeFileName && (
                     <Button

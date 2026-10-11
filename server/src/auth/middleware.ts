@@ -32,6 +32,10 @@ export function extractSessionToken(req: Request): string | null {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     return authHeader.substring(7).trim();
   }
+  // 3. Check query param token (supports direct browser downloads & preview)
+  if (req.query && typeof req.query.token === 'string') {
+    return req.query.token;
+  }
   return null;
 }
 
@@ -131,12 +135,12 @@ export function authorizeStudentAccess(paramKey: string = 'id') {
       });
     }
 
-    // If caller is officer or coordinator
-    if (req.user.role === 'officer' || req.user.role === 'coordinator') {
+    // If caller is officer, coordinator, or admin
+    if (req.user.role === 'officer' || req.user.role === 'coordinator' || req.user.role === 'admin') {
       return next();
     }
 
-    // Admin & Panel Coordinator do not have unrestricted student access by default
+    // Panel Coordinator and unauthorized roles restricted
     return res.status(403).json({
       error: `Forbidden: Role '${req.user.role}' does not have unrestricted access to full student records.`,
       code: 'FORBIDDEN_ROLE_RESTRICTED'

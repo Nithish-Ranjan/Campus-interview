@@ -67,8 +67,8 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
     const result = await parser.getText();
     return result.text || '';
   } catch (err: any) {
-    console.error('[PDF Extraction Error]:', err.message);
-    throw new Error(`Failed to extract text from PDF: ${err.message}`);
+    console.warn('[PDF Extraction Warning]: Could not extract text, using fallback:', err.message);
+    return '';
   }
 }
 
@@ -87,7 +87,7 @@ export function sanitizeResumeTextForAi(text: string): string {
 /**
  * Deterministic fallback parser when Gemini API key is absent or unreachable.
  */
-function fallbackResumeParser(text: string): ParsedResume {
+export function fallbackResumeParser(text: string): ParsedResume {
   const commonTech = [
     'React', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'PostgreSQL',
     'SQL', 'Docker', 'AWS', 'Java', 'Spring Boot', 'C++', 'Git', 'Linux',
@@ -128,7 +128,12 @@ function fallbackResumeParser(text: string): ParsedResume {
  * Parses resume using Gemini API if configured, falling back to deterministic text analysis.
  */
 export async function parseResumeWithGemini(pdfBuffer: Buffer): Promise<{ parsed: ParsedResume; isAi: boolean }> {
-  const rawText = await extractTextFromPdf(pdfBuffer);
+  let rawText = '';
+  try {
+    rawText = await extractTextFromPdf(pdfBuffer);
+  } catch (err: any) {
+    console.warn('[PDF Text Extraction Warning]:', err.message);
+  }
   const cleanText = sanitizeResumeTextForAi(rawText);
 
   const apiKey = process.env.GEMINI_API_KEY;

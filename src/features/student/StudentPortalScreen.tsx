@@ -476,7 +476,7 @@ export const StudentPortalScreen: React.FC = () => {
                   <input
                     id="resume-upload-input"
                     type="file"
-                    accept="application/pdf"
+                    accept=".pdf,application/pdf"
                     onChange={handleFileUpload}
                     disabled={isUploading}
                     className="hidden"

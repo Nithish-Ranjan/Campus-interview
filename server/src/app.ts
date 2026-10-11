@@ -104,3 +104,12 @@ app.use('/api/recovery-proposals', recoveryRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/notifications', notificationsRouter);
+
+// Global Error Handler (Multer errors & uncaught route exceptions)
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'File size exceeds 5 MB limit. Please upload a smaller PDF.' });
+  }
+  console.error('[Unhandled Server Error]:', err);
+  return res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+});

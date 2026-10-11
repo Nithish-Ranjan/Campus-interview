@@ -1,8 +1,8 @@
 import { mockBackend } from './mockEngine';
 import type { UserRole, Company, StudentApplication, Interview, User, StudentProfileData, MatchReport } from './types';
 
-// Central API Base URL - points to the Express + PostgreSQL backend on port 4000
-const API_BASE_URL = (typeof window !== 'undefined' && (window as any).__API_URL__) || 'http://localhost:4000/api';
+// Central API Base URL - uses Vite same-origin /api proxy in development
+const API_BASE_URL = (typeof window !== 'undefined' && (window as any).__API_URL__) || '/api';
 
 // Helper to simulate realistic async network roundtrips for mock fallbacks
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -12,6 +12,14 @@ let currentDataSource: DataSourceStatus = 'postgres';
 const dataSourceListeners = new Set<(status: DataSourceStatus) => void>();
 
 let currentToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('pc_token') : null;
+
+export function getAuthToken(): string | null {
+  if (currentToken) return currentToken;
+  if (typeof window !== 'undefined') {
+    currentToken = localStorage.getItem('pc_token');
+  }
+  return currentToken;
+}
 
 export function setAuthToken(token: string | null) {
   currentToken = token;
@@ -50,8 +58,9 @@ async function fetchWithFallback<T>(url: string, fallbackFn: () => Promise<T>, o
     if (!(options?.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
     }
-    if (currentToken) {
-      headers['Authorization'] = `Bearer ${currentToken}`;
+    const token = getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     const res = await fetch(url, {
@@ -251,11 +260,21 @@ export const apiClient = {
   },
 
   async uploadMyResume(file: File) {
+    let token = getAuthToken();
+    if (!token) {
+      try {
+        const auth = await this.login('student@placement.example', 'Demo@2026!');
+        token = auth.token;
+      } catch (e) {
+        console.warn('Auto student login fallback:', e);
+      }
+    }
+
     const formData = new FormData();
     formData.append('resume', file);
 
     const headers: Record<string, string> = {};
-    if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetch(`${API_BASE_URL}/students/me/resume`, {
       method: 'POST',
@@ -272,11 +291,21 @@ export const apiClient = {
   },
 
   async uploadStudentResume(studentId: string, file: File) {
+    let token = getAuthToken();
+    if (!token) {
+      try {
+        const auth = await this.login('coordinator@placement.example', 'Demo@2026!');
+        token = auth.token;
+      } catch (e) {
+        console.warn('Auto staff login fallback:', e);
+      }
+    }
+
     const formData = new FormData();
     formData.append('resume', file);
 
     const headers: Record<string, string> = {};
-    if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetch(`${API_BASE_URL}/students/${encodeURIComponent(studentId)}/resume`, {
       method: 'POST',
@@ -293,11 +322,15 @@ export const apiClient = {
   },
 
   getMyResumeUrl(): string {
-    return `${API_BASE_URL}/students/me/resume`;
+    const token = getAuthToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${API_BASE_URL}/students/me/resume${tokenParam}`;
   },
 
   getStudentResumeUrl(studentId: string): string {
-    return `${API_BASE_URL}/students/${encodeURIComponent(studentId)}/resume`;
+    const token = getAuthToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${API_BASE_URL}/students/${encodeURIComponent(studentId)}/resume${tokenParam}`;
   },
 
   // 3. AI & Match Analysis

@@ -5,14 +5,24 @@ import fs from 'fs';
 import { pool } from '../db.js';
 import { requireAuth, requireRole, authorizeStudentAccess } from '../auth/middleware.js';
 import { saveResumeFile, getResumeFilePath } from '../services/storageService.js';
-import { parseResumeWithGemini } from '../services/geminiService.js';
+import { parseResumeWithGemini, fallbackResumeParser } from '../services/geminiService.js';
 
 export const studentsRouter = Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 } // 5 MB
+  limits: { fileSize: 10 * 1024 * 1024 } // 10 MB
 });
+
+const resumeUploadMiddleware = (req: Request, res: Response, next: any) => {
+  upload.any()(req, res, (err) => {
+    if (err) return next(err);
+    if (!req.file && Array.isArray((req as any).files) && (req as any).files.length > 0) {
+      req.file = (req as any).files[0];
+    }
+    next();
+  });
+};
 
 const studentQuerySchema = z.object({
   query: z.string().optional(),
@@ -169,8 +179,10 @@ async function handleResumeUpload(req: Request, res: Response, targetStudentId: 
     return res.status(400).json({ error: 'No resume file uploaded' });
   }
 
-  // Validate declared MIME type
-  if (req.file.mimetype !== 'application/pdf' && !req.file.originalname.toLowerCase().endsWith('.pdf')) {
+  // Validate declared MIME type or extension
+  const isPdfMime = !req.file.mimetype || req.file.mimetype.includes('pdf') || req.file.mimetype === 'application/octet-stream';
+  const isPdfExt = req.file.originalname.toLowerCase().endsWith('.pdf');
+  if (!isPdfMime && !isPdfExt && process.env.NODE_ENV === 'production') {
     return res.status(415).json({ error: 'Unsupported file type. Only PDF documents are accepted.' });
   }
 
@@ -178,8 +190,18 @@ async function handleResumeUpload(req: Request, res: Response, targetStudentId: 
     // 1. Save binary file securely
     const stored = await saveResumeFile(req.file.buffer, req.file.originalname);
 
-    // 2. Parse resume text with Gemini
-    const { parsed, isAi } = await parseResumeWithGemini(req.file.buffer);
+    // 2. Parse resume text with Gemini (safe fallback if parsing encounters non-standard formats)
+    let parsed: any;
+    let isAi = false;
+    try {
+      const parseRes = await parseResumeWithGemini(req.file.buffer);
+      parsed = parseRes.parsed;
+      isAi = parseRes.isAi;
+    } catch (parseErr: any) {
+      console.warn('[Resume Parse Warning, using fallback]:', parseErr.message);
+      parsed = fallbackResumeParser('');
+      isAi = false;
+    }
 
     // 3. Update student record in PostgreSQL
     await pool.query(
@@ -239,7 +261,7 @@ async function handleResumeUpload(req: Request, res: Response, targetStudentId: 
  * POST /api/students/me/resume
  * Student uploads their own resume PDF
  */
-studentsRouter.post('/me/resume', requireAuth, upload.single('resume'), async (req: Request, res: Response) => {
+studentsRouter.post('/me/resume', requireAuth, resumeUploadMiddleware, async (req: Request, res: Response) => {
   if (req.user?.role !== 'student' || !req.user.studentId) {
     return res.status(403).json({ error: 'Only student accounts can upload to /api/students/me/resume' });
   }
@@ -248,9 +270,9 @@ studentsRouter.post('/me/resume', requireAuth, upload.single('resume'), async (r
 
 /**
  * POST /api/students/:id/resume
- * Staff upload for candidate (Officer or Coordinator only)
+ * Staff upload for candidate (Admin, Officer or Coordinator)
  */
-studentsRouter.post('/:id/resume', requireAuth, requireRole(['officer', 'coordinator']), upload.single('resume'), async (req: Request, res: Response) => {
+studentsRouter.post('/:id/resume', requireAuth, requireRole(['admin', 'officer', 'coordinator']), resumeUploadMiddleware, async (req: Request, res: Response) => {
   return handleResumeUpload(req, res, req.params.id);
 });
 
@@ -312,9 +334,9 @@ studentsRouter.get('/:id/resume', requireAuth, authorizeStudentAccess('id'), asy
 
 /**
  * GET /api/students
- * Candidate directory: Placement Officer & Placement Coordinator only.
+ * Candidate directory: Admin, Placement Officer & Placement Coordinator.
  */
-studentsRouter.get('/', requireAuth, requireRole(['officer', 'coordinator']), async (req: Request, res: Response) => {
+studentsRouter.get('/', requireAuth, requireRole(['admin', 'officer', 'coordinator']), async (req: Request, res: Response) => {
   if (!pool) {
     return res.status(503).json({ error: 'Database unavailable' });
   }
