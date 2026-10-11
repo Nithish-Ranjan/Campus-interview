@@ -62,7 +62,7 @@ export const SideNav: React.FC<SideNavProps> = ({
           name: 'Overview',
           path: '/overview',
           icon: LayoutDashboard,
-          allowedRoles: ['admin', 'officer', 'coordinator', 'panel_coordinator', 'observer', 'student']
+          allowedRoles: ['admin', 'officer', 'coordinator', 'panel_coordinator']
         }
       ]
     },
@@ -73,25 +73,25 @@ export const SideNav: React.FC<SideNavProps> = ({
           name: 'Candidates',
           path: '/candidates',
           icon: Users,
-          allowedRoles: ['admin', 'officer', 'coordinator', 'panel_coordinator', 'observer', 'student']
+          allowedRoles: ['officer', 'coordinator']
         },
         {
           name: 'Companies',
           path: '/companies',
           icon: Building2,
-          allowedRoles: ['admin', 'officer', 'coordinator', 'panel_coordinator', 'observer']
+          allowedRoles: ['admin', 'officer', 'coordinator']
         },
         {
           name: 'Eligibility',
           path: '/eligibility',
           icon: ShieldCheck,
-          allowedRoles: ['admin', 'officer', 'coordinator', 'observer']
+          allowedRoles: ['officer', 'coordinator']
         },
         {
           name: 'Capacity & Waitlist',
           path: '/capacity',
           icon: Boxes,
-          allowedRoles: ['admin', 'officer', 'coordinator', 'observer']
+          allowedRoles: ['officer', 'coordinator']
         }
       ]
     },
@@ -102,13 +102,13 @@ export const SideNav: React.FC<SideNavProps> = ({
           name: 'Schedule Board',
           path: '/schedule',
           icon: Calendar,
-          allowedRoles: ['admin', 'officer', 'coordinator', 'panel_coordinator', 'observer']
+          allowedRoles: ['officer', 'coordinator']
         },
         {
           name: 'Live Operations',
           path: '/live',
           icon: Activity,
-          allowedRoles: ['admin', 'officer', 'coordinator', 'panel_coordinator', 'observer']
+          allowedRoles: ['officer', 'coordinator', 'panel_coordinator']
         }
       ]
     },
@@ -119,14 +119,14 @@ export const SideNav: React.FC<SideNavProps> = ({
           name: 'Recovery Workspace',
           path: '/recovery',
           icon: RotateCcw,
-          allowedRoles: ['admin', 'officer', 'coordinator']
+          allowedRoles: ['officer', 'coordinator']
         },
         {
           name: 'Approvals',
           path: '/approvals',
           icon: CheckSquare,
-          allowedRoles: ['admin', 'officer', 'coordinator'],
-          badgeCount: (user.role === 'admin' || user.role === 'officer') ? pendingProposalsCount : undefined
+          allowedRoles: ['officer', 'coordinator'],
+          badgeCount: user.role === 'officer' ? pendingProposalsCount : undefined
         }
       ]
     },

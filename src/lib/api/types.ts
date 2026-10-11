@@ -8,6 +8,7 @@ export interface User {
   role: UserRole;
   assignedPanels?: string[]; // e.g. ['Room A']
   environment: 'production' | 'demo';
+  studentId?: string;
 }
 
 export type EligibilityStatus = 'eligible' | 'ineligible' | 'pending_verification';
@@ -297,4 +298,62 @@ export interface ApiErrorEnvelope {
     };
     requestId: string;
   };
+}
+
+export interface StudentProfileData {
+  student: Student & {
+    academicYear?: string;
+    graduationYear?: number;
+    collegeName?: string;
+    resumeUrl?: string;
+    resumeFileName?: string;
+    resumeUploadedAt?: string;
+    resumeParseStatus?: string;
+    parsedResume?: any;
+  };
+  applications: StudentApplication[];
+  interviews: Array<{
+    id: string;
+    scheduledStart: string;
+    scheduledEnd: string;
+    estimatedStart?: string;
+    estimatedEnd?: string;
+    status: InterviewStatus;
+    delayMinutes?: number;
+    delayReason?: string;
+    companyName: string;
+    roleTitle?: string;
+    roomName: string;
+    building?: string;
+    panellists?: string[];
+  }>;
+  notifications: Array<{
+    id: string;
+    title: string;
+    message: string;
+    type: string;
+    isRead: boolean;
+    createdAt: string;
+  }>;
+}
+
+export interface MatchReport {
+  studentId: string;
+  companyId: string;
+  companyName: string;
+  roleTitle: string;
+  eligibility: 'eligible' | 'ineligible';
+  mandatoryPassed: boolean;
+  mandatoryReasons: string[];
+  matchScore: number;
+  matchingSkills: Array<{ skill: string; evidence: string }>;
+  missingSkills: string[];
+  relevantProjects: Array<{ title: string; relevance: string }>;
+  preparationSuggestions: string[];
+  limitations: string;
+  advisoryDisclaimer?: string;
+  confidence?: string;
+  isAiGenerated: boolean;
+  modelUsed: string;
+  evaluatedAt: string;
 }

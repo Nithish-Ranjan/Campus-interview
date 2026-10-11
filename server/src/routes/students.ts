@@ -1,8 +1,18 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
+import fs from 'fs';
 import { pool } from '../db.js';
+import { requireAuth, requireRole, authorizeStudentAccess } from '../auth/middleware.js';
+import { saveResumeFile, getResumeFilePath } from '../services/storageService.js';
+import { parseResumeWithGemini } from '../services/geminiService.js';
 
 export const studentsRouter = Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 } // 5 MB
+});
 
 const studentQuerySchema = z.object({
   query: z.string().optional(),
@@ -13,10 +23,298 @@ const studentQuerySchema = z.object({
 });
 
 /**
- * GET /api/students
- * Returns candidate records with linked company applications.
+ * GET /api/students/me
+ * Authenticated Student Portal Profile & Own Data
  */
-studentsRouter.get('/', async (req: Request, res: Response) => {
+studentsRouter.get('/me', requireAuth, async (req: Request, res: Response) => {
+  if (!pool) return res.status(503).json({ error: 'Database unavailable' });
+
+  if (req.user?.role !== 'student' || !req.user.studentId) {
+    return res.status(403).json({ error: 'Only student accounts can access /api/students/me' });
+  }
+
+  const studentId = req.user.studentId;
+
+  try {
+    const client = await pool.connect();
+    try {
+      // 1. Student profile
+      const studentRes = await client.query(`
+        SELECT 
+          s.id, s.roll_number as "rollNumber", s.name, s.branch, s.cgpa::float, s.backlogs,
+          s.skills, s.email, s.phone, s.resume_url as "resumeUrl", s.resume_file_name as "resumeFileName",
+          s.academic_verified as "academicVerified", s.academic_year as "academicYear",
+          s.graduation_year as "graduationYear", s.college_name as "collegeName",
+          s.resume_parse_status as "resumeParseStatus", s.parsed_resume as "parsedResume",
+          s.resume_uploaded_at as "resumeUploadedAt"
+        FROM students s WHERE s.id = $1
+      `, [studentId]);
+
+      if (studentRes.rowCount === 0) {
+        return res.status(404).json({ error: 'Student profile not found' });
+      }
+
+      const student = studentRes.rows[0];
+
+      // 2. Own Applications
+      const appsRes = await client.query(`
+        SELECT 
+          a.id, a.company_id as "companyId", c.name as "companyName", c.role_title as "roleTitle",
+          c.round_name as "roundName", a.eligibility, a.match_score::float as "matchScore",
+          a.selection, a.rank, a.waitlist_position as "waitlistPosition",
+          a.selection_reason as "selectionReason", a.criteria_summary as "criteriaSummary"
+        FROM student_applications a
+        JOIN companies c ON a.company_id = c.id
+        WHERE a.student_id = $1
+      `, [studentId]);
+
+      // 3. Own Interviews
+      const interviewsRes = await client.query(`
+        SELECT 
+          sl.id, sl.scheduled_start as "scheduledStart", sl.scheduled_end as "scheduledEnd",
+          sl.estimated_start as "estimatedStart", sl.estimated_end as "estimatedEnd",
+          sl.status, sl.delay_minutes as "delayMinutes", sl.delay_reason as "delayReason",
+          c.name as "companyName", c.role_title as "roleTitle", r.name as "roomName", r.building,
+          COALESCE(array_agg(iv.name) FILTER (WHERE iv.name IS NOT NULL), ARRAY[]::varchar[]) as "panellists"
+        FROM interview_slots sl
+        JOIN companies c ON sl.company_id = c.id
+        JOIN rooms r ON sl.room_id = r.id
+        LEFT JOIN interview_panel_members pm ON sl.id = pm.interview_id
+        LEFT JOIN interviewers iv ON pm.interviewer_id = iv.id
+        WHERE sl.student_id = $1 AND sl.schedule_mode = 'published'
+        GROUP BY sl.id, c.name, c.role_title, r.name, r.building
+        ORDER BY sl.scheduled_start ASC
+      `, [studentId]);
+
+      // 4. Own Notifications
+      const notifsRes = await client.query(`
+        SELECT id, title, message, type, is_read as "isRead", created_at as "createdAt"
+        FROM student_notifications
+        WHERE student_id = $1 AND is_dismissed = false
+        ORDER BY created_at DESC LIMIT 10
+      `, [studentId]);
+
+      return res.status(200).json({
+        student: {
+          ...student,
+          skills: Array.isArray(student.skills) ? student.skills : []
+        },
+        applications: appsRes.rows,
+        interviews: interviewsRes.rows.map(iv => ({
+          ...iv,
+          scheduledStart: new Date(iv.scheduledStart).toISOString(),
+          scheduledEnd: new Date(iv.scheduledEnd).toISOString(),
+          estimatedStart: iv.estimatedStart ? new Date(iv.estimatedStart).toISOString() : undefined,
+          estimatedEnd: iv.estimatedEnd ? new Date(iv.estimatedEnd).toISOString() : undefined
+        })),
+        notifications: notifsRes.rows
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error('[Students Me Error]:', err);
+    return res.status(500).json({ error: 'Failed to retrieve student profile' });
+  }
+});
+
+/**
+ * PATCH /api/students/me
+ * Student self-service editing (Phone, Skills only).
+ * Academic fields (CGPA, Branch, Backlogs) cannot be modified by students.
+ */
+studentsRouter.patch('/me', requireAuth, async (req: Request, res: Response) => {
+  if (!pool) return res.status(503).json({ error: 'Database unavailable' });
+  if (req.user?.role !== 'student' || !req.user.studentId) {
+    return res.status(403).json({ error: 'Only student accounts can update /api/students/me' });
+  }
+
+  const { phone, skills } = req.body;
+  const updates: string[] = [];
+  const params: any[] = [];
+
+  if (phone !== undefined) {
+    params.push(phone);
+    updates.push(`phone = $${params.length}`);
+  }
+  if (skills !== undefined && Array.isArray(skills)) {
+    params.push(JSON.stringify(skills));
+    updates.push(`skills = $${params.length}::jsonb`);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No valid self-service fields provided for update (allowed: phone, skills)' });
+  }
+
+  try {
+    params.push(req.user.studentId);
+    const result = await pool.query(
+      `UPDATE students SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${params.length} RETURNING id, phone, skills`,
+      params
+    );
+    return res.status(200).json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Student Self-Edit Error]:', err);
+    return res.status(500).json({ error: 'Failed to update student profile' });
+  }
+});
+
+/**
+ * Helper to handle PDF resume upload
+ */
+async function handleResumeUpload(req: Request, res: Response, targetStudentId: string) {
+  if (!pool) return res.status(503).json({ error: 'Database unavailable' });
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'No resume file uploaded' });
+  }
+
+  // Validate declared MIME type
+  if (req.file.mimetype !== 'application/pdf' && !req.file.originalname.toLowerCase().endsWith('.pdf')) {
+    return res.status(415).json({ error: 'Unsupported file type. Only PDF documents are accepted.' });
+  }
+
+  try {
+    // 1. Save binary file securely
+    const stored = await saveResumeFile(req.file.buffer, req.file.originalname);
+
+    // 2. Parse resume text with Gemini
+    const { parsed, isAi } = await parseResumeWithGemini(req.file.buffer);
+
+    // 3. Update student record in PostgreSQL
+    await pool.query(
+      `UPDATE students SET
+         resume_storage_key = $1,
+         resume_file_size = $2,
+         resume_mime_type = 'application/pdf',
+         resume_hash = $3,
+         resume_uploaded_at = NOW(),
+         resume_file_name = $4,
+         resume_url = $5,
+         parsed_resume = $6::jsonb,
+         resume_parse_status = 'parsed',
+         updated_at = NOW()
+       WHERE id = $7`,
+      [
+        stored.storageKey,
+        stored.fileSize,
+        stored.hash,
+        req.file.originalname,
+        `/api/students/${targetStudentId}/resume`,
+        JSON.stringify(parsed),
+        targetStudentId
+      ]
+    );
+
+    // 4. Audit Log
+    await pool.query(
+      `INSERT INTO audit_entries (id, actor_id, actor_name, actor_role, action, category, entity_type, entity_id, entity_name, summary)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        `audit-${Date.now()}`, req.user?.id || 'system', req.user?.name || 'User', req.user?.role || 'student',
+        'student.resume_uploaded', 'eligibility', 'student', targetStudentId, req.file.originalname,
+        `Resume PDF uploaded (${(stored.fileSize / 1024).toFixed(1)} KB, parsed with ${isAi ? 'Gemini AI' : 'Deterministic Engine'})`
+      ]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Resume uploaded and parsed successfully.',
+      fileName: req.file.originalname,
+      fileSize: stored.fileSize,
+      hash: stored.hash,
+      isAiParsed: isAi,
+      parsedResume: parsed
+    });
+  } catch (err: any) {
+    console.error('[Resume Upload Error]:', err);
+    if (err.message && err.message.includes('PDF')) {
+      return res.status(415).json({ error: err.message });
+    }
+    return res.status(500).json({ error: 'Failed to process resume upload', message: err.message });
+  }
+}
+
+/**
+ * POST /api/students/me/resume
+ * Student uploads their own resume PDF
+ */
+studentsRouter.post('/me/resume', requireAuth, upload.single('resume'), async (req: Request, res: Response) => {
+  if (req.user?.role !== 'student' || !req.user.studentId) {
+    return res.status(403).json({ error: 'Only student accounts can upload to /api/students/me/resume' });
+  }
+  return handleResumeUpload(req, res, req.user.studentId);
+});
+
+/**
+ * POST /api/students/:id/resume
+ * Staff upload for candidate (Officer or Coordinator only)
+ */
+studentsRouter.post('/:id/resume', requireAuth, requireRole(['officer', 'coordinator']), upload.single('resume'), async (req: Request, res: Response) => {
+  return handleResumeUpload(req, res, req.params.id);
+});
+
+/**
+ * Helper to stream resume download
+ */
+async function streamResumeFile(req: Request, res: Response, targetStudentId: string) {
+  if (!pool) return res.status(503).json({ error: 'Database unavailable' });
+
+  try {
+    const studentRes = await pool.query(
+      `SELECT resume_storage_key, resume_file_name FROM students WHERE id = $1`,
+      [targetStudentId]
+    );
+
+    if (studentRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const { resume_storage_key, resume_file_name } = studentRes.rows[0];
+    if (!resume_storage_key) {
+      return res.status(404).json({ error: 'No resume on file for this student' });
+    }
+
+    const filePath = getResumeFilePath(resume_storage_key);
+    if (!filePath || !fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Resume file not found in storage' });
+    }
+
+    const downloadName = resume_file_name || 'student_resume.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${downloadName}"`);
+    const stream = fs.createReadStream(filePath);
+    stream.pipe(res);
+  } catch (err: any) {
+    console.error('[Resume Download Error]:', err);
+    return res.status(500).json({ error: 'Failed to stream resume file' });
+  }
+}
+
+/**
+ * GET /api/students/me/resume
+ * Authenticated Student downloads their own resume
+ */
+studentsRouter.get('/me/resume', requireAuth, async (req: Request, res: Response) => {
+  if (req.user?.role !== 'student' || !req.user.studentId) {
+    return res.status(403).json({ error: 'Only student accounts can download from /api/students/me/resume' });
+  }
+  return streamResumeFile(req, res, req.user.studentId);
+});
+
+/**
+ * GET /api/students/:id/resume
+ * Authorized download: Student (own only), Officer, Coordinator
+ */
+studentsRouter.get('/:id/resume', requireAuth, authorizeStudentAccess('id'), async (req: Request, res: Response) => {
+  return streamResumeFile(req, res, req.params.id);
+});
+
+/**
+ * GET /api/students
+ * Candidate directory: Placement Officer & Placement Coordinator only.
+ */
+studentsRouter.get('/', requireAuth, requireRole(['officer', 'coordinator']), async (req: Request, res: Response) => {
   if (!pool) {
     return res.status(503).json({ error: 'Database unavailable' });
   }
@@ -33,7 +331,7 @@ studentsRouter.get('/', async (req: Request, res: Response) => {
     try {
       // 1. Fetch Students
       const queryParams: any[] = [];
-      let whereClauses: string[] = ['1=1'];
+      const whereClauses: string[] = ['1=1'];
 
       if (query && query.trim() !== '') {
         queryParams.push(`%${query.trim()}%`);
@@ -58,7 +356,11 @@ studentsRouter.get('/', async (req: Request, res: Response) => {
           s.phone,
           s.resume_url as "resumeUrl",
           s.resume_file_name as "resumeFileName",
-          s.academic_verified as "academicVerified"
+          s.academic_verified as "academicVerified",
+          s.academic_year as "academicYear",
+          s.graduation_year as "graduationYear",
+          s.college_name as "collegeName",
+          s.parsed_resume as "parsedResume"
         FROM students s
         WHERE ${whereClauses.join(' AND ')}
         ORDER BY s.roll_number ASC
@@ -123,12 +425,15 @@ studentsRouter.get('/', async (req: Request, res: Response) => {
           resumeUrl: s.resumeUrl ?? undefined,
           resumeFileName: s.resumeFileName ?? undefined,
           academicVerified: s.academicVerified || { cgpa: true, backlogs: true, branch: true, skills: true },
+          academicYear: s.academicYear,
+          graduationYear: s.graduationYear,
+          collegeName: s.collegeName,
+          parsedResume: s.parsedResume,
           applications: studentApps,
           activeApplication: activeApp
         };
       });
 
-      // Apply post-filters if specified
       if (eligibility && eligibility !== 'all') {
         students = students.filter(s => s.activeApplication?.eligibility === eligibility);
       }
@@ -149,8 +454,9 @@ studentsRouter.get('/', async (req: Request, res: Response) => {
 
 /**
  * GET /api/students/:id
+ * Candidate details with strict privacy scoping.
  */
-studentsRouter.get('/:id', async (req: Request, res: Response) => {
+studentsRouter.get('/:id', requireAuth, authorizeStudentAccess('id'), async (req: Request, res: Response) => {
   if (!pool) return res.status(503).json({ error: 'Database unavailable' });
 
   const { id } = req.params;
@@ -159,7 +465,11 @@ studentsRouter.get('/:id', async (req: Request, res: Response) => {
     const client = await pool.connect();
     try {
       const studentRes = await client.query(`
-        SELECT id, roll_number as "rollNumber", name, branch, cgpa::float, backlogs, skills, email, phone, resume_url as "resumeUrl", resume_file_name as "resumeFileName", academic_verified as "academicVerified"
+        SELECT 
+          id, roll_number as "rollNumber", name, branch, cgpa::float, backlogs, skills, email, phone,
+          resume_url as "resumeUrl", resume_file_name as "resumeFileName", academic_verified as "academicVerified",
+          academic_year as "academicYear", graduation_year as "graduationYear", college_name as "collegeName",
+          parsed_resume as "parsedResume", resume_uploaded_at as "resumeUploadedAt"
         FROM students WHERE id = $1
       `, [id]);
 

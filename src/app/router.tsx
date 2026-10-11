@@ -8,6 +8,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { ErrorPage } from './pages/ErrorPage';
 
 import { LoginScreen } from '@/features/auth/LoginScreen';
+import { StudentPortalScreen } from '@/features/student/StudentPortalScreen';
 import { OverviewScreen } from '@/features/overview/OverviewScreen';
 import { CandidatesScreen } from '@/features/candidates/CandidatesScreen';
 import { StudentProfileScreen } from '@/features/candidates/StudentProfileScreen';
@@ -23,12 +24,14 @@ import { AuditScreen } from '@/features/audit/AuditScreen';
 import { SettingsScreen } from '@/features/settings/SettingsScreen';
 import { useAuth } from '@/lib/auth/authContext';
 
-// Helper component for root "/" landing page redirect (Section 4.3)
+// Helper component for root "/" landing page redirect
 const RootRedirect: React.FC = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
 
   switch (user.role) {
+    case 'student':
+      return <Navigate to="/my-schedule" replace />;
     case 'officer':
       return <Navigate to="/approvals" replace />;
     case 'panel_coordinator':
@@ -63,39 +66,95 @@ export const router = createBrowserRouter([
         path: '/',
         element: <RootRedirect />
       },
+      // Student Dedicated Portal (Isolated Layout without staff sidebar)
+      {
+        path: '/my-schedule',
+        element: (
+          <RoleGuard allowedRoles={['student']} />
+        ),
+        children: [
+          {
+            path: '',
+            element: <StudentPortalScreen />
+          }
+        ]
+      },
+      // Student portal aliases
+      {
+        path: '/student',
+        element: <Navigate to="/my-schedule" replace />
+      },
+      {
+        path: '/students',
+        element: <Navigate to="/candidates" replace />
+      },
+      // Staff Operations Console (AppShell)
       {
         element: <AppShell />,
         errorElement: <ErrorPage />,
         children: [
-          // All roles routes
+          // Operational Overview: Admin, Officer, Coordinator, Panel Coordinator
           {
-            path: '/overview',
-            element: <OverviewScreen />
-          },
-          {
-            path: '/candidates',
-            element: <CandidatesScreen />
-          },
-          {
-            path: '/candidates/:studentId',
-            element: <StudentProfileScreen />
-          },
-          {
-            path: '/companies',
-            element: <CompaniesScreen />
-          },
-          {
-            path: '/schedule',
-            element: <ScheduleScreen />
-          },
-          {
-            path: '/live',
-            element: <LiveOpsScreen />
+            element: <RoleGuard allowedRoles={['admin', 'officer', 'coordinator', 'panel_coordinator']} />,
+            children: [
+              {
+                path: '/overview',
+                element: <OverviewScreen />
+              }
+            ]
           },
 
-          // Eligibility & Capacity: Admin, Officer, Coordinator, Observer
+          // Student Directory & Detailed Profiles: Placement Officer & Placement Coordinator Only
           {
-            element: <RoleGuard allowedRoles={['admin', 'officer', 'coordinator', 'observer']} />,
+            element: <RoleGuard allowedRoles={['officer', 'coordinator']} />,
+            children: [
+              {
+                path: '/candidates',
+                element: <CandidatesScreen />
+              },
+              {
+                path: '/candidates/:studentId',
+                element: <StudentProfileScreen />
+              }
+            ]
+          },
+
+          // Companies: Admin, Officer, Coordinator
+          {
+            element: <RoleGuard allowedRoles={['admin', 'officer', 'coordinator']} />,
+            children: [
+              {
+                path: '/companies',
+                element: <CompaniesScreen />
+              }
+            ]
+          },
+
+          // Schedule: Officer, Coordinator
+          {
+            element: <RoleGuard allowedRoles={['officer', 'coordinator']} />,
+            children: [
+              {
+                path: '/schedule',
+                element: <ScheduleScreen />
+              }
+            ]
+          },
+
+          // Live Operations: Officer, Coordinator, Panel Coordinator
+          {
+            element: <RoleGuard allowedRoles={['officer', 'coordinator', 'panel_coordinator']} />,
+            children: [
+              {
+                path: '/live',
+                element: <LiveOpsScreen />
+              }
+            ]
+          },
+
+          // Eligibility & Capacity: Officer, Coordinator
+          {
+            element: <RoleGuard allowedRoles={['officer', 'coordinator']} />,
             children: [
               {
                 path: '/eligibility',
@@ -108,9 +167,9 @@ export const router = createBrowserRouter([
             ]
           },
 
-          // Recovery, Approvals, Audit: Admin, Officer, Coordinator
+          // Recovery & Approvals: Officer, Coordinator
           {
-            element: <RoleGuard allowedRoles={['admin', 'officer', 'coordinator']} />,
+            element: <RoleGuard allowedRoles={['officer', 'coordinator']} />,
             children: [
               {
                 path: '/recovery',
@@ -127,7 +186,14 @@ export const router = createBrowserRouter([
               {
                 path: '/approvals/:proposalId',
                 element: <ProposalComparisonScreen />
-              },
+              }
+            ]
+          },
+
+          // Audit Log: Admin, Officer, Coordinator
+          {
+            element: <RoleGuard allowedRoles={['admin', 'officer', 'coordinator']} />,
+            children: [
               {
                 path: '/audit',
                 element: <AuditScreen />
@@ -135,22 +201,27 @@ export const router = createBrowserRouter([
             ]
           },
 
-          // Settings routes
+          // Settings routes (Admin only)
           {
-            path: '/settings',
-            element: <Navigate to="/settings/preferences" replace />
-          },
-          {
-            path: '/settings/users',
-            element: <SettingsScreen />
-          },
-          {
-            path: '/settings/preferences',
-            element: <SettingsScreen />
-          },
-          {
-            path: '/settings/demo',
-            element: <SettingsScreen />
+            element: <RoleGuard allowedRoles={['admin']} />,
+            children: [
+              {
+                path: '/settings',
+                element: <Navigate to="/settings/preferences" replace />
+              },
+              {
+                path: '/settings/users',
+                element: <SettingsScreen />
+              },
+              {
+                path: '/settings/preferences',
+                element: <SettingsScreen />
+              },
+              {
+                path: '/settings/demo',
+                element: <SettingsScreen />
+              }
+            ]
           }
         ]
       }

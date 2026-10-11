@@ -209,6 +209,32 @@ class MockOperationsBackend {
         completed: this.publishedSchedule.filter(i => i.status === 'completed').length,
         delayed: delayedInterviews.length,
         scheduled: this.publishedSchedule.filter(i => i.status === 'scheduled').length
+      },
+      charts: {
+        byAcademicYear: [
+          { academicYear: '4th Year', graduationYear: 2026, count: 6 },
+          { academicYear: '3rd Year', graduationYear: 2027, count: 4 }
+        ],
+        byBranch: [
+          { branch: 'Computer Science', registered: 4, eligible: 3, selected: 2 },
+          { branch: 'Electrical Engineering', registered: 2, eligible: 2, selected: 1 },
+          { branch: 'Information Technology', registered: 2, eligible: 2, selected: 1 },
+          { branch: 'Mechanical Engineering', registered: 2, eligible: 1, selected: 0 }
+        ],
+        byCollege: [
+          { collegeName: 'National Institute of Technology', count: 10 }
+        ],
+        interviewTimeline: [
+          { timeSlot: '09:00 AM', total: 2, scheduled: 2, inProgress: 0, completed: 0, delayed: 0 },
+          { timeSlot: '10:00 AM', total: 2, scheduled: 1, inProgress: 1, completed: 0, delayed: 0 },
+          { timeSlot: '11:00 AM', total: 2, scheduled: 0, inProgress: 0, completed: 1, delayed: 1 },
+          { timeSlot: '02:00 PM', total: 2, scheduled: 2, inProgress: 0, completed: 0, delayed: 0 }
+        ],
+        conflicts: [
+          { type: 'interviewer', count: 1, open: 1, resolved: 0 },
+          { type: 'room', count: 0, open: 0, resolved: 0 },
+          { type: 'student', count: 0, open: 0, resolved: 0 }
+        ]
       }
     };
   }

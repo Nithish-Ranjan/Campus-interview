@@ -56,9 +56,10 @@ router.post('/', async (req, res) => {
 
   const { type, targetId, delayMinutes = 30, alternativeId, note } = parseResult.data;
   
-  // Fake user identity for now since auth is not fully implemented
-  const createdByUserId = (req.headers['x-actor-id'] as string) || 'user-admin';
-  const createdByUserName = (req.headers['x-actor-name'] as string) || 'System Admin';
+  // Derive user identity from authenticated session, fallback to actor header for test harnesses
+  const createdByUserId = req.user?.id || (req.headers['x-actor-id'] as string) || 'user-coord';
+  const createdByUserName = req.user?.name || (req.headers['x-actor-name'] as string) || 'Rishi Nair (Coordinator)';
+  const actorRole = req.user?.role || 'coordinator';
 
   try {
     const client = await pool!.connect();
@@ -106,7 +107,7 @@ router.post('/', async (req, res) => {
       await client.query(
         `INSERT INTO audit_entries (id, actor_id, actor_name, actor_role, action, category, entity_type, entity_id, entity_name, summary)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [auditId, createdByUserId, createdByUserName, 'admin', 'recovery.proposal_created', 'recovery', 'proposal', proposalId, title, `Created recovery proposal from simulation`]
+        [auditId, createdByUserId, createdByUserName, actorRole, 'recovery.proposal_created', 'recovery', 'proposal', proposalId, title, `Created recovery proposal from simulation`]
       );
 
       await client.query('COMMIT');
@@ -163,8 +164,9 @@ router.post('/:id/decide', async (req, res) => {
   const { decision, note } = parseResult.data;
   const proposalId = req.params.id;
   
-  const actorId = (req.headers['x-actor-id'] as string) || 'user-officer';
-  const actorName = (req.headers['x-actor-name'] as string) || 'System Approver';
+  const actorId = req.user?.id || (req.headers['x-actor-id'] as string) || 'user-officer';
+  const actorName = req.user?.name || (req.headers['x-actor-name'] as string) || 'Prof. Meera Sen (Officer)';
+  const actorRole = req.user?.role || 'officer';
   
   try {
     const client = await pool!.connect();
@@ -241,8 +243,9 @@ router.post('/:id/decide', async (req, res) => {
 // Apply proposal
 router.post('/:id/apply', async (req, res) => {
   const proposalId = req.params.id;
-  const actorId = (req.headers['x-actor-id'] as string) || 'user-admin';
-  const actorName = (req.headers['x-actor-name'] as string) || 'System Admin';
+  const actorId = req.user?.id || (req.headers['x-actor-id'] as string) || 'user-coord';
+  const actorName = req.user?.name || (req.headers['x-actor-name'] as string) || 'Rishi Nair (Coordinator)';
+  const actorRole = req.user?.role || 'coordinator';
 
   try {
     const client = await pool!.connect();

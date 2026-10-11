@@ -1,5 +1,6 @@
 import { pool } from './db.js';
 import { config } from './config.js';
+import { hashPassword } from './auth/crypto.js';
 
 export interface SeedResult {
   success: boolean;
@@ -25,6 +26,9 @@ export async function runDevSeed(): Promise<SeedResult> {
 
   try {
     await client.query('BEGIN');
+
+    // Generate standard password hash for all demo users ('Demo@2026!')
+    const defaultPasswordHash = await hashPassword('Demo@2026!');
 
     // 1. Seed Demo Users (5 Approved Roles)
     const users = [
@@ -72,16 +76,17 @@ export async function runDevSeed(): Promise<SeedResult> {
 
     for (const u of users) {
       await client.query(
-        `INSERT INTO users (id, name, email, role, assigned_panels, environment, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, NOW(), NOW())
+        `INSERT INTO users (id, name, email, role, password_hash, assigned_panels, environment, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, NOW(), NOW())
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name,
            email = EXCLUDED.email,
            role = EXCLUDED.role,
+           password_hash = EXCLUDED.password_hash,
            assigned_panels = EXCLUDED.assigned_panels,
            environment = EXCLUDED.environment,
            updated_at = NOW()`,
-        [u.id, u.name, u.email, u.role, u.assigned_panels, u.environment]
+        [u.id, u.name, u.email, u.role, defaultPasswordHash, u.assigned_panels, u.environment]
       );
     }
 
@@ -100,7 +105,10 @@ export async function runDevSeed(): Promise<SeedResult> {
         phone: '+91 98765 43210',
         resume_url: '/resumes/private/DEMO-0001-Aarav-Sharma.pdf',
         resume_file_name: 'Aarav_Sharma_Resume.pdf',
-        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true })
+        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true }),
+        academic_year: '4th Year',
+        graduation_year: 2027,
+        college_name: 'Apex Institute of Technology'
       },
       {
         id: 'stu-002',
@@ -115,7 +123,10 @@ export async function runDevSeed(): Promise<SeedResult> {
         phone: '+91 98765 43211',
         resume_url: '/resumes/private/DEMO-0002-Priya-Patel.pdf',
         resume_file_name: 'Priya_Patel_Resume.pdf',
-        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true })
+        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true }),
+        academic_year: '4th Year',
+        graduation_year: 2027,
+        college_name: 'Apex Institute of Technology'
       },
       {
         id: 'stu-003',
@@ -130,7 +141,10 @@ export async function runDevSeed(): Promise<SeedResult> {
         phone: '+91 98765 43212',
         resume_url: '/resumes/private/DEMO-0003-Rohan-Verma.pdf',
         resume_file_name: 'Rohan_Verma_Resume.pdf',
-        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true })
+        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true }),
+        academic_year: '4th Year',
+        graduation_year: 2027,
+        college_name: 'Apex Institute of Technology'
       },
       {
         id: 'stu-004',
@@ -145,14 +159,125 @@ export async function runDevSeed(): Promise<SeedResult> {
         phone: '+91 98765 43213',
         resume_url: '/resumes/private/DEMO-0004-Sneha-Iyer.pdf',
         resume_file_name: 'Sneha_Iyer_Resume.pdf',
-        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true })
+        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true }),
+        academic_year: '4th Year',
+        graduation_year: 2027,
+        college_name: 'Apex Institute of Technology'
+      },
+      {
+        id: 'stu-005',
+        user_id: null,
+        roll_number: 'DEMO-0005',
+        name: 'Vikram Rao',
+        branch: 'Computer Science',
+        cgpa: 8.70,
+        backlogs: 0,
+        skills: JSON.stringify(['Java', 'Spring Boot', 'PostgreSQL', 'Kubernetes']),
+        email: 'vikram.rao@student.example',
+        phone: '+91 98765 43214',
+        resume_url: '/resumes/private/DEMO-0005-Vikram-Rao.pdf',
+        resume_file_name: 'Vikram_Rao_Resume.pdf',
+        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true }),
+        academic_year: '4th Year',
+        graduation_year: 2027,
+        college_name: 'Apex Institute of Technology'
+      },
+      {
+        id: 'stu-006',
+        user_id: null,
+        roll_number: 'DEMO-0006',
+        name: 'Ananya Deshmukh',
+        branch: 'Information Technology',
+        cgpa: 8.20,
+        backlogs: 0,
+        skills: JSON.stringify(['JavaScript', 'React', 'HTML/CSS', 'Node.js']),
+        email: 'ananya.d@student.example',
+        phone: '+91 98765 43215',
+        resume_url: '/resumes/private/DEMO-0006-Ananya-Deshmukh.pdf',
+        resume_file_name: 'Ananya_Deshmukh_Resume.pdf',
+        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true }),
+        academic_year: '4th Year',
+        graduation_year: 2027,
+        college_name: 'Apex Institute of Technology'
+      },
+      {
+        id: 'stu-007',
+        user_id: null,
+        roll_number: 'DEMO-0007',
+        name: 'Karthik Narayanan',
+        branch: 'Electronics & Comm.',
+        cgpa: 7.90,
+        backlogs: 0,
+        skills: JSON.stringify(['MATLAB', 'VLSI', 'Verilog', 'C']),
+        email: 'karthik.n@student.example',
+        phone: '+91 98765 43216',
+        resume_url: '/resumes/private/DEMO-0007-Karthik-N.pdf',
+        resume_file_name: 'Karthik_N_Resume.pdf',
+        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true }),
+        academic_year: '3rd Year',
+        graduation_year: 2028,
+        college_name: 'Apex Institute of Technology'
+      },
+      {
+        id: 'stu-008',
+        user_id: null,
+        roll_number: 'DEMO-0008',
+        name: 'Meenakshi Sundaram',
+        branch: 'Mechanical',
+        cgpa: 8.50,
+        backlogs: 0,
+        skills: JSON.stringify(['AutoCAD', 'SolidWorks', 'ANSYS', 'Python']),
+        email: 'meenakshi.s@student.example',
+        phone: '+91 98765 43217',
+        resume_url: '/resumes/private/DEMO-0008-Meenakshi-S.pdf',
+        resume_file_name: 'Meenakshi_S_Resume.pdf',
+        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true }),
+        academic_year: '4th Year',
+        graduation_year: 2027,
+        college_name: 'Apex Institute of Technology'
+      },
+      {
+        id: 'stu-009',
+        user_id: null,
+        roll_number: 'DEMO-0009',
+        name: 'Tanvi Joshi',
+        branch: 'Computer Science',
+        cgpa: 9.40,
+        backlogs: 0,
+        skills: JSON.stringify(['Python', 'PyTorch', 'Data Structures', 'TypeScript']),
+        email: 'tanvi.j@student.example',
+        phone: '+91 98765 43218',
+        resume_url: '/resumes/private/DEMO-0009-Tanvi-Joshi.pdf',
+        resume_file_name: 'Tanvi_Joshi_Resume.pdf',
+        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true }),
+        academic_year: '3rd Year',
+        graduation_year: 2028,
+        college_name: 'Apex Institute of Technology'
+      },
+      {
+        id: 'stu-010',
+        user_id: null,
+        roll_number: 'DEMO-0010',
+        name: 'Rahul Nair',
+        branch: 'Data Engineering',
+        cgpa: 7.20,
+        backlogs: 1,
+        skills: JSON.stringify(['SQL', 'Python', 'Tableau']),
+        email: 'rahul.n@student.example',
+        phone: '+91 98765 43219',
+        resume_url: '/resumes/private/DEMO-0010-Rahul-Nair.pdf',
+        resume_file_name: 'Rahul_Nair_Resume.pdf',
+        academic_verified: JSON.stringify({ cgpa: true, backlogs: true, branch: true, skills: true }),
+        academic_year: '4th Year',
+        graduation_year: 2027,
+        college_name: 'Apex Institute of Technology'
       }
     ];
 
     for (const s of students) {
       await client.query(
-        `INSERT INTO students (id, user_id, roll_number, name, branch, cgpa, backlogs, skills, email, phone, resume_url, resume_file_name, academic_verified, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13::jsonb, NOW(), NOW())
+        `INSERT INTO students (id, user_id, roll_number, name, branch, cgpa, backlogs, skills, email, phone, resume_url, resume_file_name, academic_verified, academic_year, graduation_year, college_name, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, NOW(), NOW())
          ON CONFLICT (id) DO UPDATE SET
            user_id = EXCLUDED.user_id,
            roll_number = EXCLUDED.roll_number,
@@ -166,10 +291,14 @@ export async function runDevSeed(): Promise<SeedResult> {
            resume_url = EXCLUDED.resume_url,
            resume_file_name = EXCLUDED.resume_file_name,
            academic_verified = EXCLUDED.academic_verified,
+           academic_year = EXCLUDED.academic_year,
+           graduation_year = EXCLUDED.graduation_year,
+           college_name = EXCLUDED.college_name,
            updated_at = NOW()`,
         [
           s.id, s.user_id, s.roll_number, s.name, s.branch, s.cgpa, s.backlogs,
-          s.skills, s.email, s.phone, s.resume_url, s.resume_file_name, s.academic_verified
+          s.skills, s.email, s.phone, s.resume_url, s.resume_file_name, s.academic_verified,
+          s.academic_year, s.graduation_year, s.college_name
         ]
       );
     }
@@ -348,6 +477,138 @@ export async function runDevSeed(): Promise<SeedResult> {
         waitlist_position: null,
         selection_reason: 'Passed CGPA >= 8.0 criteria; top rank in analytics specialization.',
         criteria_summary: JSON.stringify({ passed: 3, total: 3 })
+      },
+      {
+        id: 'app-ast-005',
+        student_id: 'stu-005',
+        company_id: 'comp-ast',
+        eligibility: 'eligible',
+        match_score: 91.00,
+        selection: 'selected',
+        rank: 4,
+        waitlist_position: null,
+        selection_reason: 'Passed all criteria; enterprise systems profile.',
+        criteria_summary: JSON.stringify({ passed: 3, total: 3 })
+      },
+      {
+        id: 'app-ast-006',
+        student_id: 'stu-006',
+        company_id: 'comp-ast',
+        eligibility: 'eligible',
+        match_score: 87.00,
+        selection: 'waitlisted',
+        rank: null,
+        waitlist_position: 1,
+        selection_reason: 'Eligible; in top waitlist cohort.',
+        criteria_summary: JSON.stringify({ passed: 3, total: 3 })
+      },
+      {
+        id: 'app-ast-007',
+        student_id: 'stu-007',
+        company_id: 'comp-ast',
+        eligibility: 'eligible',
+        match_score: 82.00,
+        selection: 'waitlisted',
+        rank: null,
+        waitlist_position: 2,
+        selection_reason: 'Eligible 3rd year candidate.',
+        criteria_summary: JSON.stringify({ passed: 3, total: 3 })
+      },
+      {
+        id: 'app-ast-008',
+        student_id: 'stu-008',
+        company_id: 'comp-ast',
+        eligibility: 'pending_verification',
+        match_score: null,
+        selection: 'not_selected_this_round',
+        rank: null,
+        waitlist_position: null,
+        selection_reason: 'Academic records pending verification by Placement Officer.',
+        criteria_summary: JSON.stringify({ passed: 0, total: 3 })
+      },
+      {
+        id: 'app-ast-009',
+        student_id: 'stu-009',
+        company_id: 'comp-ast',
+        eligibility: 'eligible',
+        match_score: 97.50,
+        selection: 'selected',
+        rank: 5,
+        waitlist_position: null,
+        selection_reason: 'Exceptional competitive programming & data structures score.',
+        criteria_summary: JSON.stringify({ passed: 3, total: 3 })
+      },
+      {
+        id: 'app-ast-010',
+        student_id: 'stu-010',
+        company_id: 'comp-ast',
+        eligibility: 'ineligible',
+        match_score: 45.00,
+        selection: 'not_selected_this_round',
+        rank: null,
+        waitlist_position: null,
+        selection_reason: 'Failed mandatory requirement: Active backlogs detected (1 backlog).',
+        criteria_summary: JSON.stringify({ passed: 1, total: 3 })
+      },
+      {
+        id: 'app-har-005',
+        student_id: 'stu-005',
+        company_id: 'comp-har',
+        eligibility: 'eligible',
+        match_score: 89.00,
+        selection: 'selected',
+        rank: 2,
+        waitlist_position: null,
+        selection_reason: 'Passed CGPA >= 8.0 criteria.',
+        criteria_summary: JSON.stringify({ passed: 3, total: 3 })
+      },
+      {
+        id: 'app-har-007',
+        student_id: 'stu-007',
+        company_id: 'comp-har',
+        eligibility: 'ineligible',
+        match_score: 55.00,
+        selection: 'not_selected_this_round',
+        rank: null,
+        waitlist_position: null,
+        selection_reason: 'Failed mandatory requirement: CGPA 7.90 below required threshold 8.0.',
+        criteria_summary: JSON.stringify({ passed: 1, total: 3 })
+      },
+      {
+        id: 'app-har-008',
+        student_id: 'stu-008',
+        company_id: 'comp-har',
+        eligibility: 'eligible',
+        match_score: 86.00,
+        selection: 'waitlisted',
+        rank: null,
+        waitlist_position: 1,
+        selection_reason: 'Passed mandatory criteria; analytics portfolio on waitlist.',
+        criteria_summary: JSON.stringify({ passed: 3, total: 3 })
+      },
+      {
+        id: 'app-har-009',
+        student_id: 'stu-009',
+        company_id: 'comp-har',
+        eligibility: 'eligible',
+        match_score: 95.00,
+        selection: 'selected',
+        rank: 3,
+        waitlist_position: null,
+        selection_reason: 'High technical aptitude and Python ML background.',
+        criteria_summary: JSON.stringify({ passed: 3, total: 3 })
+      },
+      {
+        id: 'app-har-010',
+        student_id: 'stu-010',
+        company_id: 'comp-har',
+        eligibility: 'ineligible',
+        match_score: 40.00,
+        selection: 'not_selected_this_round',
+        rank: null,
+        waitlist_position: null,
+        selection_reason: 'Failed mandatory requirements: CGPA < 8.0 and backlogs > 0.',
+        criteria_summary: JSON.stringify({ passed: 0, total: 3 })
       }
     ];
 

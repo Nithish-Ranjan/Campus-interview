@@ -10,6 +10,7 @@ export const ForbiddenPage: React.FC = () => {
   const getLandingPath = () => {
     if (!user) return '/login';
     switch (user.role) {
+      case 'student': return '/my-schedule';
       case 'officer': return '/approvals';
       case 'panel_coordinator': return '/live';
       default: return '/overview';

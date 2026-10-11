@@ -10,6 +10,7 @@ import {
   Database,
   AlertTriangle
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/authContext';
 import { ConnectionIndicator } from '@/components/domain/ConnectionIndicator';
 import { Breadcrumbs } from './Breadcrumbs';
@@ -40,6 +41,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   primaryAction
 }) => {
   const { user, switchRole } = useAuth();
+  const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const [dataSource, setDataSource] = useState<DataSourceStatus>('postgres');
@@ -165,9 +167,18 @@ export const TopBar: React.FC<TopBarProps> = ({
                 <button
                   key={r.role}
                   type="button"
-                  onClick={() => {
-                    switchRole(r.role);
+                  onClick={async () => {
+                    await switchRole(r.role);
                     setRoleMenuOpen(false);
+                    if (r.role === 'student') {
+                      navigate('/my-schedule');
+                    } else if (r.role === 'officer') {
+                      navigate('/approvals');
+                    } else if (r.role === 'panel_coordinator') {
+                      navigate('/live');
+                    } else {
+                      navigate('/overview');
+                    }
                   }}
                   className={cn(
                     'w-full text-left px-3 py-2 text-xs transition-colors flex flex-col',

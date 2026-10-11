@@ -1,7 +1,8 @@
 import express from 'express';
-import cors from 'express';
+import cookieParser from 'cookie-parser';
 import { config } from './config.js';
 import { testDbConnection } from './db.js';
+import { authenticateSession } from './auth/middleware.js';
 
 export const app = express();
 
@@ -11,7 +12,7 @@ app.use((req, res, next) => {
   if (origin && (config.corsOrigins.includes(origin) || config.corsOrigins.includes('*'))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-actor-id, x-actor-name');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 
@@ -21,9 +22,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware for parsing JSON and URL-encoded bodies
+// Middleware for parsing JSON, URL-encoded bodies, and cookies
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// Session resolution middleware (attaches req.user if session cookie/token present)
+app.use(authenticateSession);
 
 // Lightweight request logging
 app.use((req, res, next) => {
@@ -38,7 +43,7 @@ app.use((req, res, next) => {
 });
 
 /**
- * 2. GET /api/health
+ * GET /api/health
  * Simple health probe to verify API server is alive
  */
 app.get('/api/health', (_req, res) => {
@@ -51,9 +56,8 @@ app.get('/api/health', (_req, res) => {
 });
 
 /**
- * 4. GET /api/health/db
+ * GET /api/health/db
  * Real PostgreSQL connectivity test.
- * Does not fake success: returns 200 if connected, 503 if unreachable/unconfigured.
  */
 app.get('/api/health/db', async (_req, res) => {
   const result = await testDbConnection();
@@ -74,10 +78,12 @@ app.get('/api/health/db', async (_req, res) => {
     database: 'postgresql',
     message: result.message,
     error: result.error,
-    hint: 'Configure a valid DATABASE_URL in server/.env (e.g. postgresql://postgres:postgres@localhost:5432/placement_command) and ensure PostgreSQL is running.',
+    hint: 'Configure a valid DATABASE_URL in server/.env and ensure PostgreSQL is running.',
   });
 });
 
+import { authRouter } from './routes/auth.js';
+import { aiRouter } from './routes/ai.js';
 import { interviewsRouter } from './routes/interviews.js';
 import { companiesRouter } from './routes/companies.js';
 import { studentsRouter } from './routes/students.js';
@@ -87,7 +93,9 @@ import auditRouter from './routes/audit.js';
 import usersRouter from './routes/users.js';
 import notificationsRouter from './routes/notifications.js';
 
-// Read-only PostgreSQL Endpoints
+// Route mounting
+app.use('/api/auth', authRouter);
+app.use('/api/ai', aiRouter);
 app.use('/api/interviews', interviewsRouter);
 app.use('/api/companies', companiesRouter);
 app.use('/api/students', studentsRouter);

@@ -6,24 +6,18 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   switchRole: (role: UserRole) => Promise<void>;
-  signOut: () => void;
-  signIn: (email: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  signIn: (email: string, password?: string) => Promise<void>;
   isAllowed: (allowedRoles: UserRole[]) => boolean;
 }
 
 const defaultAuthContext: AuthContextType = {
-  user: {
-    id: 'usr-coord',
-    name: 'Priya Sharma',
-    email: 'priya.s@campus.edu',
-    role: 'coordinator',
-    environment: 'demo'
-  },
-  isLoading: false,
+  user: null,
+  isLoading: true,
   switchRole: async () => {},
-  signOut: () => {},
+  signOut: async () => {},
   signIn: async () => {},
-  isAllowed: () => true,
+  isAllowed: () => false,
 };
 
 const AuthContext = createContext<AuthContextType>(defaultAuthContext);
@@ -33,9 +27,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Bootstrap user session
+    // Bootstrap user session from server
     apiClient.getMe()
-      .then(u => setUser(u))
+      .then(u => {
+        if (u && u.id) setUser(u);
+        else setUser(null);
+      })
       .catch(() => setUser(null))
       .finally(() => setIsLoading(false));
   }, []);
@@ -50,18 +47,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signIn = async (_email: string) => {
+  const signIn = async (email: string, password: string = 'Demo@2026!') => {
     setIsLoading(true);
     try {
-      const u = await apiClient.getMe();
-      setUser(u);
+      const res = await apiClient.login(email, password);
+      setUser(res.user);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signOut = () => {
-    setUser(null);
+  const signOut = async () => {
+    try {
+      await apiClient.logout();
+    } finally {
+      setUser(null);
+    }
   };
 
   const isAllowed = (allowedRoles: UserRole[]) => {

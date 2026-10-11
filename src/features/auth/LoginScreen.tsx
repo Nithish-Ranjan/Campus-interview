@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Compass, CheckCircle } from 'lucide-react';
+import { GraduationCap, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, CheckCircle2, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth/authContext';
 import type { UserRole } from '@/lib/api/types';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
 export const LoginScreen: React.FC = () => {
-  const { user, switchRole } = useAuth();
+  const { user, signIn, switchRole } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('coordinator@placement.example');
+  const [password, setPassword] = useState('Demo@2026!');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,13 +19,14 @@ export const LoginScreen: React.FC = () => {
   // If already signed in, redirect to role landing
   React.useEffect(() => {
     if (user) {
-      if (user.role === 'officer') navigate('/approvals');
+      if (user.role === 'student') navigate('/my-schedule');
+      else if (user.role === 'officer') navigate('/approvals');
       else if (user.role === 'panel_coordinator') navigate('/live');
       else navigate('/overview');
     }
   }, [user, navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
       setError('Please provide a valid account email.');
@@ -40,24 +40,25 @@ export const LoginScreen: React.FC = () => {
     setIsSubmitting(true);
     setError(null);
 
-    // Simulate authentication
-    setTimeout(() => {
+    try {
+      await signIn(email, password);
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password.');
+    } finally {
       setIsSubmitting(false);
-      // Determine role from email
-      if (email.includes('officer')) switchRole('officer');
-      else if (email.includes('panel')) switchRole('panel_coordinator');
-      else if (email.includes('admin')) switchRole('admin');
-      else if (email.includes('student')) switchRole('student');
-      else if (email.includes('observer')) switchRole('observer');
-      else switchRole('coordinator');
-    }, 350);
+    }
   };
 
-  const handleQuickDemoLogin = (role: UserRole) => {
-    switchRole(role);
-    if (role === 'officer') navigate('/approvals');
-    else if (role === 'panel_coordinator') navigate('/live');
-    else navigate('/overview');
+  const handleQuickDemoLogin = async (role: UserRole) => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await switchRole(role);
+    } catch (err: any) {
+      setError(err.message || 'Failed to switch to demo role');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -104,9 +105,14 @@ export const LoginScreen: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#172033] mb-1.5" htmlFor="password-input">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-[#172033]" htmlFor="password-input">
+                    Password
+                  </label>
+                  <span className="text-[10px] text-[#64748B] flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-[#2563EB]" /> Demo pwd: <code>Demo@2026!</code>
+                  </span>
+                </div>
                 <div className="relative">
                   <input
                     id="password-input"
@@ -142,7 +148,7 @@ export const LoginScreen: React.FC = () => {
             {/* Quick Demo Switcher */}
             <div className="pt-4 border-t border-[#E2E8F0] space-y-2.5">
               <div className="flex items-center justify-between text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
-                <span>Quick Demo Role Access</span>
+                <span>Judge Demo Role Access</span>
                 <ShieldCheck className="w-3.5 h-3.5 text-[#2563EB]" />
               </div>
 
@@ -153,7 +159,7 @@ export const LoginScreen: React.FC = () => {
                   className="p-2.5 text-left bg-[#F8FAFC] hover:bg-[#2563EB]/5 hover:border-[#2563EB] border border-[#E2E8F0] rounded-lg transition-all group"
                 >
                   <div className="font-bold text-[#142C4E] group-hover:text-[#2563EB]">Coordinator</div>
-                  <div className="text-[10px] text-[#64748B]">Schedule & recovery draft</div>
+                  <div className="text-[10px] text-[#64748B]">Schedule & proposals</div>
                 </button>
 
                 <button
@@ -162,7 +168,7 @@ export const LoginScreen: React.FC = () => {
                   className="p-2.5 text-left bg-[#F8FAFC] hover:bg-[#2563EB]/5 hover:border-[#2563EB] border border-[#E2E8F0] rounded-lg transition-all group"
                 >
                   <div className="font-bold text-[#142C4E] group-hover:text-[#2563EB]">Officer</div>
-                  <div className="text-[10px] text-[#64748B]">Reviews & approves proposals</div>
+                  <div className="text-[10px] text-[#64748B]">Verify & 2-key approval</div>
                 </button>
 
                 <button
@@ -171,7 +177,7 @@ export const LoginScreen: React.FC = () => {
                   className="p-2.5 text-left bg-[#F8FAFC] hover:bg-[#2563EB]/5 hover:border-[#2563EB] border border-[#E2E8F0] rounded-lg transition-all group"
                 >
                   <div className="font-bold text-[#142C4E] group-hover:text-[#2563EB]">Administrator</div>
-                  <div className="text-[10px] text-[#64748B]">Full access & reset demo</div>
+                  <div className="text-[10px] text-[#64748B]">System administration</div>
                 </button>
 
                 <button
@@ -180,7 +186,7 @@ export const LoginScreen: React.FC = () => {
                   className="p-2.5 text-left bg-[#F8FAFC] hover:bg-[#2563EB]/5 hover:border-[#2563EB] border border-[#E2E8F0] rounded-lg transition-all group"
                 >
                   <div className="font-bold text-[#142C4E] group-hover:text-[#2563EB]">Panel Coord</div>
-                  <div className="text-[10px] text-[#64748B]">Live ops Room A execution</div>
+                  <div className="text-[10px] text-[#64748B]">Assigned room ops</div>
                 </button>
 
                 <button
@@ -190,7 +196,7 @@ export const LoginScreen: React.FC = () => {
                 >
                   <div>
                     <div className="font-bold text-[#142C4E] group-hover:text-[#2563EB]">Student (Aarav Sharma)</div>
-                    <div className="text-[10px] text-[#64748B]">Candidate view & confirmed interview status</div>
+                    <div className="text-[10px] text-[#64748B]">Private portal, resume & schedule</div>
                   </div>
                   <GraduationCap className="w-4 h-4 text-[#2563EB]/70 group-hover:text-[#2563EB]" />
                 </button>

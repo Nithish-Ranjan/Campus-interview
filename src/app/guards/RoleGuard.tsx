@@ -15,6 +15,9 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({ allowedRoles }) => {
   }
 
   if (!isAllowed(allowedRoles)) {
+    if (user.role === 'student') {
+      return <Navigate to="/my-schedule" replace />;
+    }
     return <Navigate to="/403" replace />;
   }
 
