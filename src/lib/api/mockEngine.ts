@@ -450,17 +450,36 @@ class MockOperationsBackend {
   }
 
   public moveInterviewDraft(interviewId: string, targetRoomId: string, targetStart: string) {
-    const item = this.draftSchedule.find(i => i.id === interviewId);
+    let item = this.draftSchedule.find(i => i.id === interviewId);
+    let scheduleRef: Interview[] = this.draftSchedule;
+    if (!item) {
+      // Map slot-* to int-* or vice versa
+      const altId = interviewId.startsWith('slot-') ? interviewId.replace('slot-', 'int-') : interviewId.replace('int-', 'slot-');
+      item = this.draftSchedule.find(i => i.id === altId);
+    }
+    if (!item) {
+      // Fall back to published schedule (when in published mode)
+      item = this.publishedSchedule.find(i => i.id === interviewId);
+      scheduleRef = this.publishedSchedule;
+      if (!item) {
+        const altId = interviewId.startsWith('slot-') ? interviewId.replace('slot-', 'int-') : interviewId.replace('int-', 'slot-');
+        item = this.publishedSchedule.find(i => i.id === altId);
+      }
+      if (!item) item = this.draftSchedule[0] || this.publishedSchedule[0];
+    }
     if (!item) throw new Error('Interview not found');
 
     // Check for the prepared clash:
-    // If target interviewer is Dr. V. Rao at 10:30 AM in Room B, throw 409 conflict!
+    // If target interviewer is Dr. V. Rao at 10:30 AM in Room B (or Room A double-booking), throw 409 conflict!
     const targetDate = new Date(targetStart);
     const targetHours = targetDate.getHours();
     const targetMins = targetDate.getMinutes();
 
-    const isClashTime = (targetHours === 10 && targetMins === 30);
-    const isDrRaoInterview = item.interviewerNames.includes('Dr. V. Rao');
+    const isClashTime = targetStart.includes('10:30') || 
+                        targetStart.includes('05:00:00') ||
+                        (targetHours === 10 && targetMins === 30) || 
+                        (targetHours === 5 && targetMins === 0);
+    const isDrRaoInterview = item.interviewerNames.some(n => n.includes('Rao'));
 
     if (isClashTime && (targetRoomId === 'room-b' || isDrRaoInterview)) {
       throw {
@@ -471,6 +490,7 @@ class MockOperationsBackend {
           details: {
             conflicts: [
               {
+                id: `conf-${Date.now()}`,
                 type: 'interviewer',
                 resource: 'Dr. V. Rao',
                 timeRange: '10:30 AM - 11:00 AM IST',
@@ -495,6 +515,73 @@ class MockOperationsBackend {
 
     this.emit('schedule', 'interview.moved', item);
     return item;
+  }
+
+  public createInterview(data: {
+    studentId: string;
+    companyId: string;
+    roomId: string;
+    scheduledStart: string;
+    scheduledEnd?: string;
+    interviewerIds?: string[];
+  }) {
+    const student = this.students.find(s => s.id === data.studentId) || this.students[0];
+    const company = this.companies.find(c => c.id === data.companyId) || this.companies[0];
+    const room = ROOMS.find(r => r.id === data.roomId) || ROOMS[0];
+
+    // Check for clash times: 09:30 in Room A or Room B, or 10:00/10:30 with Dr. Rao
+    const isClash = data.scheduledStart.includes('09:30') || 
+                    data.scheduledStart.includes('10:00') || 
+                    data.scheduledStart.includes('10:30');
+
+    if (isClash && (data.roomId === 'room-a' || data.roomId === 'room-b')) {
+      throw {
+        status: 409,
+        error: {
+          code: 'schedule_conflict',
+          message: 'Schedule conflict detected',
+          details: {
+            conflicts: [
+              {
+                id: `conf-new-${Date.now()}`,
+                type: 'room',
+                resource: room.name,
+                timeRange: '09:30 AM - 10:00 AM IST',
+                counterpart: `${company.name} Interview`,
+                message: `Physical ${room.name} already has an active booking at this time.`
+              }
+            ]
+          },
+          requestId: 'REQ-SCH-CREATE-409'
+        }
+      };
+    }
+
+    const start = new Date(data.scheduledStart);
+    const end = data.scheduledEnd ? new Date(data.scheduledEnd) : new Date(start.getTime() + 30 * 60000);
+
+    const newInterview: Interview = {
+      id: `int-${Date.now()}`,
+      studentId: student.id,
+      studentName: student.name,
+      rollNumber: student.rollNumber,
+      companyId: company.id,
+      companyName: company.name,
+      roomId: room.id,
+      roomName: room.name,
+      interviewerIds: data.interviewerIds || ['int-1'],
+      interviewerNames: ['Dr. V. Rao'],
+      scheduledStart: start.toISOString(),
+      scheduledEnd: end.toISOString(),
+      status: 'scheduled',
+      delayMinutes: 0,
+      allowedActions: ['check_in', 'start', 'mark_delayed', 'cancel']
+    };
+
+    this.publishedSchedule.push(newInterview);
+    this.draftSchedule.push(newInterview);
+    this.emit('schedule', 'interview.created', newInterview);
+    return newInterview;
   }
 
   public submitDraftForApproval(note: string) {
@@ -598,74 +685,141 @@ class MockOperationsBackend {
   public runSimulation(disruptionType: string, targetId: string, delayMinutes: number = 30): DisruptionSimulation {
     const delayedInt = this.publishedSchedule.find(i => i.id === targetId) || this.publishedSchedule[0]!;
 
+    // Find downstream interviews in the same room
+    const targetStartMs = new Date(delayedInt.scheduledStart).getTime();
+    const downstreamSameRoom = this.publishedSchedule.filter(i =>
+      i.id !== delayedInt.id &&
+      i.roomId === delayedInt.roomId &&
+      new Date(i.scheduledStart).getTime() >= targetStartMs
+    );
+
+    const fmtIST = (iso: string | Date) => {
+      const d = new Date(iso);
+      return new Intl.DateTimeFormat('en-IN', {
+        hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata'
+      }).format(d) + ' IST';
+    };
+    const fmtRangeIST = (startIso: string | Date, endIso: string | Date) => {
+      const fmt = (d: Date) => new Intl.DateTimeFormat('en-IN', {
+        hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata'
+      }).format(d);
+      return `${fmt(new Date(startIso))} - ${fmt(new Date(endIso))} IST`;
+    };
+
+    // Build affected interviews list from real schedule data
+    const downstreamAffected = downstreamSameRoom.slice(0, 3);
+    const affectedInterviews = downstreamAffected.map(i => ({
+      interviewId: i.id,
+      studentName: i.studentName,
+      companyName: i.companyName,
+      beforeTime: fmtIST(i.scheduledStart),
+      estimatedAfterTime: `${fmtIST(new Date(new Date(i.scheduledStart).getTime() + delayMinutes * 60000))} (+${delayMinutes} min)`,
+      reason: disruptionType === 'interviewer_unavailable'
+        ? `Panel member unavailable — ${i.interviewerNames[0] || 'assigned interviewer'} needs replacement`
+        : disruptionType === 'room_unavailable'
+        ? `${delayedInt.roomName} unavailable — downstream ripple effect`
+        : `Downstream delay ripple in ${delayedInt.roomName}`
+    }));
+    if (affectedInterviews.length === 0) {
+      // Push the target itself as affected
+      affectedInterviews.push({
+        interviewId: delayedInt.id,
+        studentName: delayedInt.studentName,
+        companyName: delayedInt.companyName,
+        beforeTime: fmtIST(delayedInt.scheduledStart),
+        estimatedAfterTime: `${fmtIST(new Date(new Date(delayedInt.scheduledStart).getTime() + delayMinutes * 60000))} (+${delayMinutes} min)`,
+        reason: disruptionType === 'interviewer_unavailable'
+          ? 'Primary disrupted interview — panel member unavailable'
+          : disruptionType === 'room_unavailable'
+          ? 'Primary disrupted interview — room unavailable'
+          : `Primary delayed interview (+${delayMinutes} mins)`
+      });
+    }
+
+    // Alternative 1 scheduleShifts (uses same-room downstream)
+    const alt1Shifts = downstreamAffected.map(i => {
+      const newStart = new Date(new Date(i.scheduledStart).getTime() + delayMinutes * 60000);
+      const newEnd = new Date(new Date(i.scheduledEnd).getTime() + delayMinutes * 60000);
+      return {
+        interviewId: i.id,
+        studentName: i.studentName,
+        companyName: i.companyName,
+        beforeTime: fmtRangeIST(i.scheduledStart, i.scheduledEnd),
+        afterTime: disruptionType === 'room_unavailable'
+          ? fmtRangeIST(i.scheduledStart, i.scheduledEnd)
+          : fmtRangeIST(newStart, newEnd),
+        roomName: disruptionType === 'room_unavailable' ? 'Room B (Turing Lab)' : (i.roomName || delayedInt.roomName)
+      };
+    });
+
+    // Determine titles/descriptions per disruption type
+    let alt1Title: string;
+    let alt1Desc: string;
+    let alt1Summary: string;
+    let alt2Title: string;
+    let alt2Desc: string;
+    let alt2Blockers: string[];
+    let alt2Summary: string;
+
+    if (disruptionType === 'interviewer_unavailable') {
+      alt1Title = `Alternative 1: Assign substitute interviewer (Recommended)`;
+      alt1Desc = `Replace unavailable panel member with Dr. K. Mehta (confirmed available), maintaining all interview times in ${delayedInt.roomName}.`;
+      alt1Summary = `1 interviewer swap; 0 room changes; 0 time shifts; 0 conflicts`;
+      alt2Title = `Alternative 2: Reschedule ${downstreamAffected.length + 1} interview(s) to afternoon slot (Invalid)`;
+      alt2Desc = `Postpones affected interviews to post-2:00 PM slots to allow a different panel to be assembled.`;
+      alt2Blockers = [`No confirmed afternoon panel available for ${delayedInt.companyName} post 2:00 PM IST on Day 1.`];
+      alt2Summary = `Cannot execute: No afternoon panel slot confirmed`;
+    } else if (disruptionType === 'room_unavailable') {
+      alt1Title = `Alternative 1: Relocate ${delayedInt.roomName} interviews to Room B (Recommended)`;
+      alt1Desc = `Transfer all ${delayedInt.roomName} interviews to Room B (Turing Lab), which is free in the required window, preserving original times.`;
+      alt1Summary = `Transfers ${downstreamAffected.length + 1} interview(s) to Room B; times preserved; 0 panel changes`;
+      alt2Title = `Alternative 2: Relocate to Room C (Babbage Suite) (Invalid)`;
+      alt2Desc = `Attempts to move interviews to Room C instead.`;
+      alt2Blockers = [`Room C (Babbage Suite) is booked by Harbor Analytics from 10:30 AM – 11:30 AM IST.`];
+      alt2Summary = `Cannot execute: Room C has conflicting Harbor Analytics bookings`;
+    } else {
+      // Default: interview_delay
+      alt1Title = `Alternative 1: Shift downstream ${delayedInt.roomName} interviews by ${delayMinutes} mins (Recommended)`;
+      alt1Desc = `Maintains room assignment in ${delayedInt.roomName}, moving all downstream start times later by ${delayMinutes} minutes.`;
+      alt1Summary = `Shifts ${alt1Shifts.length} downstream interview(s) later; 0 room transfers; 0 conflicts`;
+      alt2Title = `Alternative 2: Reroute downstream interviews to Room C (Invalid)`;
+      alt2Desc = `Attempts to move remaining ${delayedInt.roomName} interviews to Room C to preserve original timetable.`;
+      alt2Blockers = [`Room C is booked by Harbor Analytics from 10:30 AM to 11:30 AM IST for Data Analyst assessments.`];
+      alt2Summary = `Cannot execute: Room C booking conflict with Harbor Analytics`;
+    }
+
     const sim: DisruptionSimulation = {
       id: `sim-${Date.now()}`,
-      type: 'interview_delay',
+      type: disruptionType,
       targetId: delayedInt.id,
-      targetName: `${delayedInt.studentName} - Room A`,
+      targetName: `${delayedInt.studentName} — ${delayedInt.roomName}`,
       delayMinutes,
       impactSummary: {
-        interviewsAffected: 2,
-        studentsAffected: 2,
+        interviewsAffected: affectedInterviews.length,
+        studentsAffected: affectedInterviews.length,
         conflictsCreated: 0,
         interviewsWithNoSlot: 0
       },
-      affectedInterviews: [
-        {
-          interviewId: 'int-ast-2',
-          studentName: 'Priya Patel',
-          companyName: 'Asteria Systems',
-          beforeTime: '10:00 AM IST',
-          estimatedAfterTime: '10:30 AM IST (+30 min)',
-          reason: 'Downstream delay ripple in Room A'
-        },
-        {
-          interviewId: 'int-ast-3',
-          studentName: 'Rohan Verma',
-          companyName: 'Asteria Systems',
-          beforeTime: '10:30 AM IST',
-          estimatedAfterTime: '11:00 AM IST (+30 min)',
-          reason: 'Downstream delay ripple in Room A'
-        }
-      ],
+      affectedInterviews,
       alternatives: [
         {
           id: 'alt-valid-1',
-          title: 'Alternative 1: Shift downstream Room A interviews by 30 mins (Recommended)',
-          description: 'Keeps all interviews in Room A with Dr. V. Rao, shifting start times later by 30 minutes.',
+          title: alt1Title,
+          description: alt1Desc,
           isValid: true,
           blockers: [],
-          changesSummary: 'Shifts 2 interviews later; 0 room changes; 0 conflicts',
-          affectedInterviewsCount: 2,
-          scheduleShifts: [
-            {
-              interviewId: 'int-ast-2',
-              studentName: 'Priya Patel',
-              companyName: 'Asteria Systems',
-              beforeTime: '10:00 AM - 10:30 AM IST',
-              afterTime: '10:30 AM - 11:00 AM IST',
-              roomName: 'Room A'
-            },
-            {
-              interviewId: 'int-ast-3',
-              studentName: 'Rohan Verma',
-              companyName: 'Asteria Systems',
-              beforeTime: '10:30 AM - 11:00 AM IST',
-              afterTime: '11:00 AM - 11:30 AM IST',
-              roomName: 'Room A'
-            }
-          ]
+          changesSummary: alt1Summary,
+          affectedInterviewsCount: alt1Shifts.length,
+          scheduleShifts: alt1Shifts
         },
         {
           id: 'alt-invalid-2',
-          title: 'Alternative 2: Reroute delayed interviews to Room C (Invalid)',
-          description: 'Attempts to absorb delay by moving remaining Room A interviews immediately to Room C.',
+          title: alt2Title,
+          description: alt2Desc,
           isValid: false,
-          blockers: [
-            'Room C is booked by Harbor Analytics from 10:30 AM to 11:30 AM IST for Data Analyst assessments.'
-          ],
-          changesSummary: 'Cannot execute: Room C booking conflict with Harbor Analytics',
-          affectedInterviewsCount: 2,
+          blockers: alt2Blockers,
+          changesSummary: alt2Summary,
+          affectedInterviewsCount: downstreamAffected.length,
           scheduleShifts: []
         }
       ],

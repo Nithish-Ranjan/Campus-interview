@@ -23,7 +23,11 @@ import {
   Check, 
   AlertTriangle,
   FolderGit2,
-  Award
+  Award,
+  Pencil,
+  X,
+  School,
+  User
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/authContext';
 import { apiClient } from '@/lib/api/client';
@@ -47,7 +51,21 @@ export const StudentPortalScreen: React.FC = () => {
   const [activeMatchReport, setActiveMatchReport] = useState<MatchReport | null>(null);
   const [isLoadingMatch, setIsLoadingMatch] = useState(false);
 
-  // Self-edit phone/skills state
+  // Full student profile edit state
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editCollege, setEditCollege] = useState('');
+  const [editAcademicYear, setEditAcademicYear] = useState('4th Year');
+  const [editGraduationYear, setEditGraduationYear] = useState<number>(2027);
+  const [editSkills, setEditSkills] = useState<string[]>([]);
+  const [newSkillInput, setNewSkillInput] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState<string | null>(null);
+
+  // Self-edit phone/skills state (inline legacy)
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
 
@@ -125,6 +143,68 @@ export const StudentPortalScreen: React.FC = () => {
       await loadStudentData();
     } catch (err: any) {
       alert('Failed to update phone: ' + err.message);
+    }
+  };
+
+  const handleOpenEditProfile = () => {
+    if (!data?.student) return;
+    setEditName(data.student.name || '');
+    setEditEmail(data.student.email || '');
+    setEditPhone(data.student.phone || '');
+    setEditCollege(data.student.collegeName || 'Apex Institute of Technology');
+    setEditAcademicYear(data.student.academicYear || '4th Year');
+    setEditGraduationYear(Number(data.student.graduationYear) || 2027);
+    setEditSkills([...(data.student.skills || [])]);
+    setProfileSaveError(null);
+    setProfileSaveSuccess(null);
+    setIsEditProfileOpen(true);
+  };
+
+  const handleAddSkill = (skillToAdd?: string) => {
+    const s = (skillToAdd || newSkillInput).trim();
+    if (!s) return;
+    if (!editSkills.some(existing => existing.toLowerCase() === s.toLowerCase())) {
+      setEditSkills([...editSkills, s]);
+    }
+    if (!skillToAdd) setNewSkillInput('');
+  };
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    setEditSkills(editSkills.filter(s => s !== skillToRemove));
+  };
+
+  const handleSaveProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim()) {
+      setProfileSaveError('Student name cannot be empty.');
+      return;
+    }
+
+    try {
+      setIsSavingProfile(true);
+      setProfileSaveError(null);
+      setProfileSaveSuccess(null);
+
+      await apiClient.updateStudentMe({
+        name: editName.trim(),
+        email: editEmail.trim(),
+        phone: editPhone.trim(),
+        collegeName: editCollege.trim(),
+        academicYear: editAcademicYear,
+        graduationYear: Number(editGraduationYear),
+        skills: editSkills
+      });
+
+      setProfileSaveSuccess('Profile updated successfully!');
+      await loadStudentData();
+      setTimeout(() => {
+        setIsEditProfileOpen(false);
+        setProfileSaveSuccess(null);
+      }, 1000);
+    } catch (err: any) {
+      setProfileSaveError(err.message || 'Failed to update student profile.');
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -611,21 +691,40 @@ export const StudentPortalScreen: React.FC = () => {
 
             {/* Profile & Self-Service Fields Card */}
             <Card className="border-[#E2E8F0] shadow-sm bg-white">
-              <CardHeader className="pb-3 border-b border-[#E2E8F0]">
-                <CardTitle className="text-sm font-bold text-[#142C4E]">Student Academic Profile</CardTitle>
-                <CardDescription className="text-xs text-[#64748B]">
-                  Official verified records and candidate contact information.
-                </CardDescription>
+              <CardHeader className="pb-3 border-b border-[#E2E8F0] flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold text-[#142C4E]">Student Academic Profile</CardTitle>
+                  <CardDescription className="text-xs text-[#64748B]">
+                    Official verified records and candidate contact information.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenEditProfile}
+                  className="text-xs gap-1.5 text-[#2563EB] border-[#2563EB]/30 hover:bg-[#2563EB]/5 font-semibold"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Edit Profile</span>
+                </Button>
               </CardHeader>
               <CardContent className="p-5 space-y-4 text-xs">
                 <div className="space-y-2">
                   <div className="flex justify-between py-1 border-b border-[#E2E8F0]">
+                    <span className="text-[#64748B]">Full Name</span>
+                    <span className="font-semibold text-[#142C4E]">{student.name}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-[#E2E8F0]">
                     <span className="text-[#64748B]">Roll Number</span>
-                    <span className="font-semibold text-[#142C4E]">{student.rollNumber}</span>
+                    <span className="font-semibold text-[#142C4E] font-mono">{student.rollNumber}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-[#E2E8F0]">
                     <span className="text-[#64748B]">Branch / Major</span>
                     <span className="font-semibold text-[#142C4E]">{student.branch}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-[#E2E8F0]">
+                    <span className="text-[#64748B]">Academic Standing</span>
+                    <span className="font-semibold text-[#142C4E]">{student.academicYear || '4th Year'} ({student.graduationYear || '2027'})</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-[#E2E8F0]">
                     <span className="text-[#64748B]">CGPA (Verified)</span>
@@ -636,49 +735,30 @@ export const StudentPortalScreen: React.FC = () => {
                     <span className="font-semibold text-[#142C4E]">{student.backlogs}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-[#E2E8F0]">
-                    <span className="text-[#64748B]">College</span>
+                    <span className="text-[#64748B]">College / Campus</span>
                     <span className="font-semibold text-[#142C4E]">{student.collegeName || 'Apex Institute of Technology'}</span>
                   </div>
-                </div>
-
-                {/* Self-service phone */}
-                <div className="pt-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-semibold text-[#142C4E]">Contact Phone</span>
-                    {!isEditingPhone ? (
-                      <button
-                        onClick={() => setIsEditingPhone(true)}
-                        className="text-[11px] text-[#2563EB] hover:underline font-medium"
-                      >
-                        Edit
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleSavePhone}
-                        className="text-[11px] text-emerald-600 hover:underline font-bold"
-                      >
-                        Save
-                      </button>
-                    )}
+                  <div className="flex justify-between py-1 border-b border-[#E2E8F0]">
+                    <span className="text-[#64748B]">Email Address</span>
+                    <span className="font-semibold text-[#142C4E] truncate max-w-[190px]">{student.email || 'student@placement.example'}</span>
                   </div>
-                  {isEditingPhone ? (
-                    <input
-                      type="text"
-                      value={phoneInput}
-                      onChange={e => setPhoneInput(e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-[#E2E8F0] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#2563EB]"
-                    />
-                  ) : (
-                    <div className="text-xs text-[#64748B] flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-[#2563EB]" />
-                      <span>{student.phone || 'No phone registered'}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between py-1 border-b border-[#E2E8F0]">
+                    <span className="text-[#64748B]">Contact Phone</span>
+                    <span className="font-semibold text-[#142C4E]">{student.phone || 'No phone registered'}</span>
+                  </div>
                 </div>
 
                 {/* Technical Skills */}
                 <div className="pt-2 border-t border-[#E2E8F0]">
-                  <span className="block text-xs font-semibold text-[#142C4E] mb-2">Technical Skills & Profile Tags</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="block text-xs font-semibold text-[#142C4E]">Technical Skills & Tags</span>
+                    <button
+                      onClick={handleOpenEditProfile}
+                      className="text-[11px] text-[#2563EB] hover:underline font-medium"
+                    >
+                      Manage Skills
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {student.skills && student.skills.length > 0 ? (
                       student.skills.map((skill, idx) => (
@@ -690,6 +770,18 @@ export const StudentPortalScreen: React.FC = () => {
                       <span className="text-xs text-[#64748B]">No skills tagged</span>
                     )}
                   </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenEditProfile}
+                    className="w-full text-xs gap-1.5"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-[#2563EB]" />
+                    <span>Edit Profile Details</span>
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -789,6 +881,212 @@ export const StudentPortalScreen: React.FC = () => {
                 Close Report
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Student Profile Details Modal */}
+      {isEditProfileOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-[#2563EB] flex items-center justify-center">
+                  <User className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#142C4E]">Edit Profile Details</h3>
+                  <p className="text-xs text-[#64748B]">Update candidate contact information and technical skillset.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEditProfileOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfileSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+              {profileSaveError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{profileSaveError}</span>
+                </div>
+              )}
+              {profileSaveSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{profileSaveSuccess}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[#142C4E]">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[#142C4E]">Contact Phone</label>
+                  <input
+                    type="text"
+                    placeholder="+91 98765 43210"
+                    value={editPhone}
+                    onChange={e => setEditPhone(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-[#142C4E]">Email Address</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={e => setEditEmail(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-[#142C4E]">College / Institution Name</label>
+                <input
+                  type="text"
+                  value={editCollege}
+                  onChange={e => setEditCollege(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[#142C4E]">Academic Year</label>
+                  <select
+                    value={editAcademicYear}
+                    onChange={e => setEditAcademicYear(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB] bg-white"
+                  >
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[#142C4E]">Graduation Year</label>
+                  <input
+                    type="number"
+                    min="2024"
+                    max="2030"
+                    value={editGraduationYear}
+                    onChange={e => setEditGraduationYear(Number(e.target.value) || 2027)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                  />
+                </div>
+              </div>
+
+              {/* Skills Management */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="text-xs font-semibold text-[#142C4E]">Technical Skills & Tags</label>
+                
+                {/* Current skills pills with delete */}
+                <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  {editSkills.map((s, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-[#142C4E] text-xs font-medium shadow-2xs"
+                    >
+                      <span>{s}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSkill(s)}
+                        className="text-slate-400 hover:text-red-500 rounded-full"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {editSkills.length === 0 && (
+                    <span className="text-xs text-slate-400">No skills added yet.</span>
+                  )}
+                </div>
+
+                {/* Add Custom Skill */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Add custom skill (e.g. Docker, GraphQL)"
+                    value={newSkillInput}
+                    onChange={e => setNewSkillInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddSkill();
+                      }
+                    }}
+                    className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAddSkill()}
+                    className="text-xs"
+                  >
+                    Add
+                  </Button>
+                </div>
+
+                {/* Quick Add Suggestions */}
+                <div className="pt-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">Quick Add:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {['React', 'TypeScript', 'Node.js', 'Python', 'SQL', 'Docker', 'AWS', 'Java', 'DSA', 'Next.js'].map(sugg => (
+                      <button
+                        key={sugg}
+                        type="button"
+                        onClick={() => handleAddSkill(sugg)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                          editSkills.includes(sugg)
+                            ? 'bg-blue-50 text-blue-700 border-blue-200 cursor-default'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600'
+                        }`}
+                      >
+                        + {sugg}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditProfileOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="default"
+                  size="sm"
+                  disabled={isSavingProfile}
+                  isLoading={isSavingProfile}
+                >
+                  Save Profile Changes
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

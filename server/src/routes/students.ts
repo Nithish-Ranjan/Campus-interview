@@ -139,13 +139,33 @@ studentsRouter.patch('/me', requireAuth, async (req: Request, res: Response) => 
     return res.status(403).json({ error: 'Only student accounts can update /api/students/me' });
   }
 
-  const { phone, skills } = req.body;
+  const { name, email, phone, collegeName, skills, academicYear, graduationYear } = req.body;
   const updates: string[] = [];
   const params: any[] = [];
 
+  if (name !== undefined && typeof name === 'string' && name.trim()) {
+    params.push(name.trim());
+    updates.push(`name = $${params.length}`);
+  }
+  if (email !== undefined && typeof email === 'string' && email.includes('@')) {
+    params.push(email.trim());
+    updates.push(`email = $${params.length}`);
+  }
   if (phone !== undefined) {
     params.push(phone);
     updates.push(`phone = $${params.length}`);
+  }
+  if (collegeName !== undefined) {
+    params.push(collegeName);
+    updates.push(`college_name = $${params.length}`);
+  }
+  if (academicYear !== undefined) {
+    params.push(academicYear);
+    updates.push(`academic_year = $${params.length}`);
+  }
+  if (graduationYear !== undefined) {
+    params.push(Number(graduationYear));
+    updates.push(`graduation_year = $${params.length}`);
   }
   if (skills !== undefined && Array.isArray(skills)) {
     params.push(JSON.stringify(skills));
@@ -153,19 +173,57 @@ studentsRouter.patch('/me', requireAuth, async (req: Request, res: Response) => 
   }
 
   if (updates.length === 0) {
-    return res.status(400).json({ error: 'No valid self-service fields provided for update (allowed: phone, skills)' });
+    return res.status(400).json({ error: 'No valid self-service fields provided for update' });
   }
 
   try {
     params.push(req.user.studentId);
     const result = await pool.query(
-      `UPDATE students SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${params.length} RETURNING id, phone, skills`,
+      `UPDATE students SET ${updates.join(', ')}, updated_at = NOW() 
+       WHERE id = $${params.length} 
+       RETURNING id, name, email, phone, college_name as "collegeName", academic_year as "academicYear", graduation_year as "graduationYear", skills`,
       params
     );
+
+    // Also sync user record name/email
+    if (name || email) {
+      const userUpdates: string[] = [];
+      const userParams: any[] = [];
+      if (name) {
+        userParams.push(name.trim());
+        userUpdates.push(`name = $${userParams.length}`);
+      }
+      if (email) {
+        userParams.push(email.trim());
+        userUpdates.push(`email = $${userParams.length}`);
+      }
+      userParams.push(req.user.id);
+      await pool.query(
+        `UPDATE users SET ${userUpdates.join(', ')}, updated_at = NOW() WHERE id = $${userParams.length}`,
+        userParams
+      ).catch(e => console.warn('Users table sync error:', e.message));
+    }
+
+    // Audit log
+    await pool.query(
+      `INSERT INTO audit_entries (id, actor_id, actor_name, actor_role, action, category, entity_type, entity_id, entity_name, summary)
+       VALUES ($1, $2, $3, $4, $5, 'eligibility', 'student', $6, $7, $8)`,
+      [
+        `aud-${Date.now()}`,
+        req.user.id,
+        name || req.user.name,
+        'student',
+        'student.profile_updated',
+        req.user.studentId,
+        name || req.user.name,
+        `Student updated personal details (${updates.length} fields updated)`
+      ]
+    );
+
     return res.status(200).json(result.rows[0]);
   } catch (err: any) {
     console.error('[Student Self-Edit Error]:', err);
-    return res.status(500).json({ error: 'Failed to update student profile' });
+    return res.status(500).json({ error: 'Failed to update student profile', message: err.message });
   }
 });
 
@@ -180,9 +238,8 @@ async function handleResumeUpload(req: Request, res: Response, targetStudentId: 
   }
 
   // Validate declared MIME type or extension
-  const isPdfMime = !req.file.mimetype || req.file.mimetype.includes('pdf') || req.file.mimetype === 'application/octet-stream';
-  const isPdfExt = req.file.originalname.toLowerCase().endsWith('.pdf');
-  if (!isPdfMime && !isPdfExt && process.env.NODE_ENV === 'production') {
+  const isPdf = req.file.originalname.toLowerCase().endsWith('.pdf') || (req.file.mimetype && req.file.mimetype.includes('pdf'));
+  if (!isPdf) {
     return res.status(415).json({ error: 'Unsupported file type. Only PDF documents are accepted.' });
   }
 
@@ -365,9 +422,9 @@ studentsRouter.get('/:id/resume', requireAuth, authorizeStudentAccess('id'), asy
 
 /**
  * GET /api/students
- * Candidate directory: Admin, Placement Officer & Placement Coordinator.
+ * Candidate directory: Placement Officer & Placement Coordinator.
  */
-studentsRouter.get('/', requireAuth, requireRole(['admin', 'officer', 'coordinator']), async (req: Request, res: Response) => {
+studentsRouter.get('/', requireAuth, requireRole(['officer', 'coordinator']), async (req: Request, res: Response) => {
   if (!pool) {
     return res.status(503).json({ error: 'Database unavailable' });
   }

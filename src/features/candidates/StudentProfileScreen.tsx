@@ -200,7 +200,14 @@ export const StudentProfileScreen: React.FC = () => {
               <Button
                 variant={student.resumeFileName ? "outline" : "navy"}
                 size="sm"
-                onClick={() => handleTabChange('resume')}
+                onClick={() => {
+                  handleTabChange('resume');
+                  if (!student.resumeFileName) {
+                    setTimeout(() => {
+                      document.getElementById('staff-resume-upload')?.click();
+                    }, 100);
+                  }
+                }}
                 className="text-xs gap-1.5 shrink-0"
               >
                 <FileText className="w-3.5 h-3.5 text-[#2563EB]" />

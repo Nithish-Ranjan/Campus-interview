@@ -25,11 +25,15 @@ export type InterviewStatus =
 export type ConflictType = 'interviewer' | 'room' | 'student' | 'cross_company_student';
 
 export interface ScheduleConflict {
+  id?: string;
+  interviewId?: string;
+  counterpartInterviewId?: string;
   type: ConflictType;
   resource: string;
   timeRange: string;
   counterpart: string;
   message: string;
+  severity?: string;
 }
 
 export type ProposalStatus = 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'stale';

@@ -37,10 +37,14 @@ export const RecoveryScreen: React.FC = () => {
   // Run initial default simulation on mount for demo script
   useEffect(() => {
     setIsRunning(true);
-    apiClient.runSimulation(disruptionType, targetId, delayMinutes)
-      .then(res => setSimulation(res))
+    apiClient.runSimulation('interview_delay', 'int-ast-1', 30)
+      .then(res => {
+        setSimulation(res);
+        if (res?.alternatives?.[0]) setSelectedAlternativeId(res.alternatives[0].id);
+      })
       .finally(() => setIsRunning(false));
-  }, [disruptionType, targetId, delayMinutes]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount with default scenario
 
   const handleRunSimulation = async () => {
     setIsRunning(true);
