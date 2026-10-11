@@ -165,7 +165,7 @@ export const ProposalComparisonScreen: React.FC = () => {
             <span>Side-by-Side Schedule Relocation Diff</span>
           </CardTitle>
           <Badge variant="secondary" className="font-mono text-xs">
-            {proposal.diffItems.length} slot adjustments
+            {(proposal.diffItems ?? []).length} slot adjustments
           </Badge>
         </CardHeader>
 
@@ -180,7 +180,7 @@ export const ProposalComparisonScreen: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {proposal.diffItems.map(item => (
+              {(proposal.diffItems ?? []).map(item => (
                 <tr key={item.interviewId} className="hover:bg-slate-50/60 transition-colors">
                   <td className="py-3.5 px-4">
                     <div className="font-bold text-slate-900">{item.studentName}</div>
@@ -228,7 +228,7 @@ export const ProposalComparisonScreen: React.FC = () => {
         </CardHeader>
 
         <CardContent className="pt-4 space-y-2.5">
-          {proposal.validationChecks.map(check => (
+          {(proposal.validationChecks ?? []).map(check => (
             <div key={check.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2.5">
                 <CheckCircle2 className="w-4 h-4 text-[#16845B] shrink-0" />

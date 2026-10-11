@@ -6,6 +6,42 @@ import { fetchValidatableSlots } from '../domain/slotQueries.js';
 
 const router = Router();
 
+/**
+ * Normalizes a raw PostgreSQL recovery_proposals row to the camelCase shape
+ * expected by the frontend RecoveryProposal type.
+ * Handles: snake_case field names, JSONB fields (may be object or JSON string).
+ */
+function normalizeProposal(row: any) {
+  const parseJson = (val: any) => {
+    if (!val) return [];
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch { return []; }
+    }
+    return val;
+  };
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    createdByUserId: row.created_by_user_id,
+    createdByUserName: row.created_by_user_name,
+    createdAt: row.created_at,
+    status: row.status,
+    simulationId: row.simulation_id,
+    baseScheduleVersion: row.base_schedule_version,
+    proposedScheduleVersion: row.proposed_schedule_version,
+    diffItems: parseJson(row.diff_items),
+    validationChecks: parseJson(row.validation_checks),
+    note: row.note,
+    isStale: row.is_stale,
+    decidedByUserId: row.decided_by_user_id,
+    decidedAt: row.decided_at,
+    decisionNote: row.decision_note,
+    updatedAt: row.updated_at
+  };
+}
+
 const generateBodySchema = z.object({
   type: z.string(),
   targetId: z.string(),
@@ -113,7 +149,7 @@ router.post('/', async (req, res) => {
       await client.query('COMMIT');
       
       const resData = await client.query('SELECT * FROM recovery_proposals WHERE id = $1', [proposalId]);
-      res.status(201).json(resData.rows[0]);
+      res.status(201).json(normalizeProposal(resData.rows[0]));
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -129,7 +165,7 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const result = await pool!.query('SELECT * FROM recovery_proposals ORDER BY created_at DESC');
-    res.json(result.rows);
+    res.json(result.rows.map(normalizeProposal));
   } catch (error) {
     console.error('Error fetching proposals:', error);
     res.status(500).json({ error: 'Failed to fetch proposals' });
@@ -142,7 +178,7 @@ router.get('/:id', async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Proposal not found' });
     }
-    res.json(result.rows[0]);
+    res.json(normalizeProposal(result.rows[0]));
   } catch (error) {
     console.error('Error fetching proposal:', error);
     res.status(500).json({ error: 'Failed to fetch proposal' });
@@ -227,7 +263,7 @@ router.post('/:id/decide', async (req, res) => {
 
       await client.query('COMMIT');
       const finalRes = await pool!.query('SELECT * FROM recovery_proposals WHERE id = $1', [proposalId]);
-      res.json(finalRes.rows[0]);
+      res.json(normalizeProposal(finalRes.rows[0]));
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

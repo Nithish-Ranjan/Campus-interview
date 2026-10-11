@@ -143,7 +143,7 @@ export const ApprovalsScreen: React.FC = () => {
                     <span>&bull;</span>
                     <span>{formatDateTimeIST(prop.createdAt)}</span>
                     <span>&bull;</span>
-                    <span className="font-mono font-semibold text-slate-800">{prop.diffItems.length} slot adjustments</span>
+                    <span className="font-mono font-semibold text-slate-800">{(prop.diffItems ?? []).length} slot adjustments</span>
                   </div>
                 </div>
 

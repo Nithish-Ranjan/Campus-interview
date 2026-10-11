@@ -36,7 +36,7 @@ export const AuditScreen: React.FC = () => {
       const q = searchQuery.toLowerCase();
       return (
         e.summary.toLowerCase().includes(q) ||
-        e.actor.name.toLowerCase().includes(q) ||
+        e.actor?.name?.toLowerCase().includes(q) ||
         e.action.toLowerCase().includes(q)
       );
     }
@@ -132,8 +132,8 @@ export const AuditScreen: React.FC = () => {
                       </td>
 
                       <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-900">{entry.actor.name}</div>
-                        <div className="text-[10px] text-slate-500 uppercase">{entry.actor.role.replace('_', ' ')}</div>
+                        <div className="font-semibold text-slate-900">{entry.actor?.name ?? '—'}</div>
+                        <div className="text-[10px] text-slate-500 uppercase">{entry.actor?.role?.replace('_', ' ') ?? ''}</div>
                       </td>
 
                       <td className="py-3 px-4">
@@ -173,11 +173,11 @@ export const AuditScreen: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Actor Name:</span>
-                  <span className="font-semibold text-slate-900">{selectedEntry.actor.name}</span>
+                  <span className="font-semibold text-slate-900">{selectedEntry.actor?.name ?? '—'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Actor Role:</span>
-                  <span className="capitalize font-semibold text-blue-700">{selectedEntry.actor.role.replace('_', ' ')}</span>
+                  <span className="capitalize font-semibold text-blue-700">{selectedEntry.actor?.role?.replace('_', ' ') ?? '—'}</span>
                 </div>
               </div>
 
