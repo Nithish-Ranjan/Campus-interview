@@ -93,7 +93,16 @@ Actual data access and write permissions must be enforced by the backend. The ta
 The project uses a centralized frontend API client to communicate with the backend. A mock-data fallback is available for development when configured by the application.
 
 ---
+### 📄 Resume Management & Privacy
 
+Resume management is handled by the authorized Placement Coordinator to maintain data accuracy and prevent unauthorized document changes.
+
+- **Student:** Can view their own resume status where available, but cannot upload, replace or delete a resume.
+- **Placement Coordinator:** Responsible for the initial resume upload and replacing an existing resume when necessary.
+- **Privacy:** Resume files must remain private and accessible only to authorized users.
+- **Security:** Resume access must be enforced by the backend, not merely by hiding frontend controls.
+
+The student portal must not display resume upload, replacement or deletion actions. All resume changes must follow the authorized coordinator workflow.
 ## 🏗️ Architecture
 
 ```text
